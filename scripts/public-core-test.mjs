@@ -163,6 +163,8 @@ try {
       'dwb_list_sessions',
       'dwb_list_detached_sessions',
       'dwb_resume_session',
+      'dwb_agent',
+      'dwb_task',
       'workspace',
     ].sort(),
   );
@@ -207,6 +209,74 @@ try {
     true,
   );
   assert.equal(await readFile(file, 'utf8'), 'reconciled');
+  await call(b, 'workspace', { action: 'bind', workspace: bound });
+  await mkdir(resolve(bound, 'src', 'backend'), { recursive: true });
+  await mkdir(resolve(bound, 'src', 'frontend'), { recursive: true });
+  const agentA = (
+    await call(a, 'dwb_agent', { action: 'register', name: 'backend-agent', role: 'backend' })
+  ).structuredContent.agent;
+  const agentB = (
+    await call(b, 'dwb_agent', { action: 'register', name: 'frontend-agent', role: 'frontend' })
+  ).structuredContent.agent;
+  assert.equal(agentA.workspaceId, agentB.workspaceId);
+  const backendTask = (
+    await call(a, 'dwb_task', {
+      action: 'create',
+      title: 'Backend lane',
+      file_scopes: ['src/backend/**'],
+    })
+  ).structuredContent.task;
+  const frontendTask = (
+    await call(a, 'dwb_task', {
+      action: 'create',
+      title: 'Frontend lane',
+      file_scopes: ['src/frontend/**'],
+    })
+  ).structuredContent.task;
+  assert.equal(
+    (await call(a, 'dwb_task', { action: 'claim', task_id: backendTask.id })).structuredContent.task
+      .status,
+    'doing',
+  );
+  assert.equal(
+    (await call(b, 'dwb_task', { action: 'claim', task_id: frontendTask.id })).structuredContent
+      .task.status,
+    'doing',
+  );
+  assert.notEqual(
+    (
+      await call(a, 'write_file', {
+        path: resolve(bound, 'src', 'backend', 'index.ts'),
+        content: 'backend',
+      })
+    ).isError,
+    true,
+  );
+  const wrongLane = await call(a, 'write_file', {
+    path: resolve(bound, 'src', 'frontend', 'index.ts'),
+    content: 'must be blocked',
+  });
+  assert.equal(wrongLane.isError, true);
+  assert.match(wrongLane.content[0].text, /DWB_TASK_SCOPE/);
+  assert.notEqual(
+    (
+      await call(b, 'write_file', {
+        path: resolve(bound, 'src', 'frontend', 'index.ts'),
+        content: 'frontend',
+      })
+    ).isError,
+    true,
+  );
+  assert.equal(
+    (await call(a, 'dwb_task', { action: 'complete', task_id: backendTask.id })).structuredContent
+      .task.status,
+    'done',
+  );
+  assert.equal(
+    (await call(b, 'dwb_task', { action: 'complete', task_id: frontendTask.id })).structuredContent
+      .task.status,
+    'done',
+  );
   const stateBefore = await readFile(env.DWB_BROKER_STATE_PATH, 'utf8');
   const duplicate = spawnSync(process.execPath, [resolve(relocated, 'dist', 'broker-server.js')], {
     env,

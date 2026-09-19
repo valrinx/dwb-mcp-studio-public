@@ -18,6 +18,10 @@ Setup เตรียมโปรแกรมจาก source ให้เอง
 
 ใช้ Setup เตรียมเครื่องและการเชื่อมต่อ ตั้งชื่อ workspace เพื่อเรียกใช้ในแชทถัดไป และดูสถานะ worker กับงานที่กำลังทำผ่าน Dashboard
 
+### ทำงานหลาย Agent ใน Workspace เดียว
+
+DWB รองรับ MCP session หลายตัวที่ bind workspace เดียวกัน พร้อม task board สำหรับแยกงานและจองขอบเขตไฟล์ แต่ละ agent ลงทะเบียนผ่าน `dwb_agent` แล้วใช้ `dwb_task` เพื่อสร้าง, claim, complete หรือ release งาน การ claim task ที่มีขอบเขตไฟล์ทับกับ task ที่กำลังทำอยู่จะถูกปฏิเสธ และ agent จะถูกบล็อกเมื่อพยายามเขียนไฟล์นอก scope ของ task ตัวเอง ดูตัวอย่างเต็มใน [คู่มือ Multi-Agent](docs/MULTI-AGENT-TH.md)
+
 ### ปรับปรุงใน beta.14
 
 เพิ่มปุ่ม **การเปิดและปิดแอป** ใน Dashboard และเมนู tray เลือกเปิดพร้อม Windows, Start MCP อัตโนมัติ, ปุ่ม × ซ่อนหรือปิดแอป และปุ่ม − ย่อที่ taskbar หรือ tray ได้ โปรแกรมจำค่าข้ามรุ่น ดู [ตัวเลือกการเปิดและปิด](docs/APP-PREFERENCES-TH.md)

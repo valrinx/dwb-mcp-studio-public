@@ -13,11 +13,13 @@ import { EventLog } from './event-log.js';
 import { SessionRegistry } from './session-registry.js';
 import { CoreStore } from './core-store.js';
 import { WorkspaceStore } from './workspace-store.js';
+import { AgentTaskStore, type TaskStatus } from './agent-task-store.js';
 
 const endpoint = brokerEndpoint();
 const log = new EventLog();
 let coreDb: CoreStore;
 let workspaceStore: WorkspaceStore;
+let agentTasks: AgentTaskStore;
 let registry: SessionRegistry;
 const sockets = new Set<Socket>();
 let markReady!: () => void;
@@ -83,11 +85,15 @@ async function controlTool(
       session: { ...session, logicalWorkspace },
     });
   }
-  if (name === 'dwb_broker_status') return textResult(registry.status);
+  if (name === 'dwb_broker_status')
+    return textResult({ ...registry.status, agentTasks: agentTasks.summary() });
   if (name === 'dwb_session_status') {
+    const logicalWorkspace = workspaceStore.current(sessionId);
     return textResult({
       ...registry.sessionStatus(sessionId),
-      logicalWorkspace: workspaceStore.current(sessionId),
+      logicalWorkspace,
+      agent: logicalWorkspace ? agentTasks.agentForSession(sessionId, logicalWorkspace.id) : null,
+      tasks: logicalWorkspace ? agentTasks.listTasks(logicalWorkspace.id) : [],
     });
   }
   if (name === 'dwb_restart_worker') return textResult(await registry.restartWorker(sessionId));
@@ -107,6 +113,48 @@ async function controlTool(
     });
   }
   if (name === 'workspace') return textResult(await registry.workspace(sessionId, args));
+  if (name === 'dwb_agent' || name === 'dwb_task') {
+    const workspace = workspaceStore.current(sessionId);
+    if (!workspace) throw new Error('Bind a workspace before using agent/task coordination.');
+    const action = typeof args.action === 'string' ? args.action.trim() : '';
+    if (name === 'dwb_agent') {
+      if (action === 'register')
+        return textResult({
+          agent: agentTasks.registerAgent(sessionId, workspace.id, args as any),
+        });
+      if (action === 'status')
+        return textResult({ agent: agentTasks.agentForSession(sessionId, workspace.id) });
+      if (action === 'list') return textResult({ agents: agentTasks.listAgents(workspace.id) });
+      throw new Error('dwb_agent.action must be one of: register, status, list.');
+    }
+    if (action === 'create')
+      return textResult({
+        task: agentTasks.createTask(workspace.id, {
+          title: args.title,
+          description: args.description,
+          fileScopes: args.file_scopes,
+          dependsOn: args.depends_on,
+        }),
+      });
+    if (action === 'list') {
+      const status = typeof args.status === 'string' ? args.status : undefined;
+      if (status && !['queued', 'doing', 'done', 'blocked'].includes(status))
+        throw new Error('dwb_task.status must be queued, doing, done, or blocked.');
+      return textResult({
+        tasks: agentTasks.listTasks(workspace.id, status as TaskStatus | undefined),
+        agent: agentTasks.agentForSession(sessionId, workspace.id),
+      });
+    }
+    const taskId = typeof args.task_id === 'string' ? args.task_id.trim() : '';
+    if (!taskId) throw new Error('task_id is required.');
+    const agent = agentTasks.agentForSession(sessionId, workspace.id);
+    if (!agent) throw new Error('Register an agent before claiming or updating tasks.');
+    if (action === 'claim') return textResult({ task: agentTasks.claimTask(taskId, agent.id) });
+    if (action === 'complete')
+      return textResult({ task: agentTasks.completeTask(taskId, agent.id, args.result) });
+    if (action === 'release') return textResult({ task: agentTasks.releaseTask(taskId, agent.id) });
+    throw new Error('dwb_task.action must be one of: create, list, claim, complete, release.');
+  }
   if (name === 'dwb_resume_session') {
     const target = args.session_id;
     if (typeof target !== 'string' || !target) throw new Error('session_id is required');
@@ -168,6 +216,7 @@ async function handle(
     const sessions = registry.listSessions();
     return {
       broker: registry.status,
+      agentTasks: agentTasks.summary(),
       totalSessions: sessions.length,
       sessions: sessions.slice(0, 200).map((session) => ({
         sessionId: session.sessionId,
@@ -362,7 +411,8 @@ async function main(): Promise<void> {
   // race journal/schema initialization or rewrite the live broker's state.
   coreDb = new CoreStore();
   workspaceStore = new WorkspaceStore(coreDb);
-  registry = new SessionRegistry(log, workspaceStore);
+  agentTasks = new AgentTaskStore(coreDb, workspaceStore);
+  registry = new SessionRegistry(log, workspaceStore, undefined, agentTasks);
   await registry.restore();
   markReady();
   await log.write({

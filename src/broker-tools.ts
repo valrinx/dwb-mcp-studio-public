@@ -75,6 +75,59 @@ export const brokerTools = [
     },
     annotations: { destructiveHint: false, idempotentHint: false },
   },
+  {
+    name: 'dwb_agent',
+    description:
+      'Register and inspect an agent working in the current bound workspace. Multiple agents can share one workspace while using separate tasks.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', description: 'Agent operation: register, status, list.' },
+        name: { type: 'string', description: 'Human-readable agent name.' },
+        role: {
+          type: 'string',
+          description: 'Optional agent role such as backend, frontend, or tester.',
+        },
+      },
+      required: ['action'],
+    },
+    annotations: { destructiveHint: false, idempotentHint: false },
+  },
+  {
+    name: 'dwb_task',
+    description:
+      'Coordinate separate tasks for agents in the current workspace. Claiming a task reserves its file scopes and prevents overlapping active tasks.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          description: 'Task operation: create, list, claim, complete, release.',
+        },
+        title: { type: 'string' },
+        description: { type: 'string' },
+        file_scopes: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Relative workspace paths or globs reserved by this task, for example src/api/**.',
+        },
+        depends_on: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Task IDs that must be done before this task can be claimed.',
+        },
+        task_id: { type: 'string' },
+        result: { description: 'Optional JSON result saved when completing a task.' },
+        status: {
+          type: 'string',
+          description: 'Optional list filter: queued, doing, done, blocked.',
+        },
+      },
+      required: ['action'],
+    },
+    annotations: { destructiveHint: false, idempotentHint: false },
+  },
 ] as const;
 
 export function textResult(value: unknown) {

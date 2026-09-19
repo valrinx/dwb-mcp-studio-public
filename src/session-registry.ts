@@ -16,6 +16,7 @@ import {
 import { LockManager } from './lock-manager.js';
 import { WorkerSupervisor, type WorkerContext } from './worker-supervisor.js';
 import { WorkspaceStore } from './workspace-store.js';
+import { AgentTaskStore } from './agent-task-store.js';
 
 type SessionState = 'attached' | 'detached';
 type WorkerAllocation = { worker: WorkerSupervisor; queueMs: number };
@@ -81,6 +82,7 @@ export class SessionRegistry {
     private readonly workspaceStore?: WorkspaceStore,
     private readonly createWorker = (log: EventLog, context: WorkerContext) =>
       new WorkerSupervisor(log, context),
+    private readonly agentTasks?: AgentTaskStore,
   ) {}
 
   get status() {
@@ -894,6 +896,25 @@ export class SessionRegistry {
         });
         return { content: [{ type: 'text', text: gate.message }], isError: true };
       }
+      const taskGate =
+        plan.kind === 'file-mutation' && this.agentTasks && this.workspaceStore
+          ? this.agentTasks.mutationGate({
+              sessionId: id,
+              workspaceId: this.workspaceStore.current(id)?.id ?? '',
+              paths: mutationPaths,
+            })
+          : null;
+      if (taskGate && !taskGate.allowed) {
+        await this.log.write({
+          type: 'task_scope_blocked',
+          sessionId: id,
+          tool: params.name,
+          ok: false,
+          workspaceKey: session.workspaceKey,
+          details: taskGate,
+        });
+        return { content: [{ type: 'text', text: taskGate.message }], isError: true };
+      }
       const allocation = await lifetime.wait(this.ensureWorker(session));
       queueMs = allocation.queueMs;
       const mode = plan.kind === 'read' ? 'read' : 'write';
@@ -911,6 +932,20 @@ export class SessionRegistry {
       });
       if (currentGate && !currentGate.allowed)
         return { content: [{ type: 'text', text: currentGate.message }], isError: true };
+      const currentMutationPaths = [
+        ...currentPlan.mutate,
+        ...currentPlan.locks.filter((x) => x.startsWith('file:')).map((x) => x.slice(5)),
+      ];
+      const currentTaskGate =
+        currentPlan.kind === 'file-mutation' && this.agentTasks && this.workspaceStore
+          ? this.agentTasks.mutationGate({
+              sessionId: id,
+              workspaceId: this.workspaceStore.current(id)?.id ?? '',
+              paths: currentMutationPaths,
+            })
+          : null;
+      if (currentTaskGate && !currentTaskGate.allowed)
+        return { content: [{ type: 'text', text: currentTaskGate.message }], isError: true };
       if (plan.mutate.length) await this.assertFresh(session, plan.mutate);
       lifetime.begin();
       const result = await allocation.worker.callTool(params, {
