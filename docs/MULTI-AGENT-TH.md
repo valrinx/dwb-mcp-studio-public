@@ -98,7 +98,7 @@ broker จะส่ง `handoff_ack` กลับไปยัง Agent ต้น
 }
 ```
 
-`wait` จะคืนทันทีเมื่อมี assignment หรือ handoff ใหม่เข้ามา และคืน `timedOut: true` เมื่อครบเวลาโดยไม่มีข้อความ จากนั้น worker ควร `ack` ข้อความและทำงานต่อ การรอแบบนี้เป็น event-driven จึงไม่ต้องรอ broker heartbeat 15 วินาที
+`wait` จะคืนทันทีเมื่อมี assignment หรือ handoff ใหม่เข้ามา และคืน `timedOut: true` เมื่อครบเวลาโดยไม่มีข้อความ จากนั้น worker ควร `ack` ข้อความและทำงานต่อ หาก timeout โดยไม่มีข้อความ ให้เรียก `wait` ซ้ำทันทีตราบใดที่ยังต้องการรับงาน เพื่อให้ session ค้างอยู่และ broker ปลุก/dispatch งานให้เองโดยไม่ต้อง polling หรือรอ heartbeat 15 วินาที
 
 ระหว่างทำงาน agent สามารถส่งข้อความตรงถึง agent อื่นได้:
 
@@ -120,7 +120,7 @@ broker จะส่ง `handoff_ack` กลับไปยัง Agent ต้น
 worker A complete → worker B task_handoff → worker B complete → main agent
 ```
 
-การส่งข้อความ, notification และการปลุก `wait` เป็นอัตโนมัติที่ broker แต่การให้โมเดล worker เริ่มเรียกเครื่องมือเองหลังได้รับ notification ยังต้องอาศัย MCP host ที่รองรับ server notifications หรือให้ worker เรียก `wait` ค้างไว้ หาก host รองรับเฉพาะ request/response จะต้องเรียก `inbox` หรือ `task list` เป็นรอบ ๆ
+การส่งข้อความ, notification และการปลุก `wait` เป็นอัตโนมัติที่ broker เมื่อ MCP session ยังเชื่อมอยู่ broker จะคืน agent ที่ถูกพักกลับเป็น `active` ก่อน dispatch งานค้างให้เอง และ DWB client จะ reconnect broker เบื้องหลังพร้อม session เดิมเมื่อ broker ถูก restart โดยไม่ต้องรอ tool call ใหม่ หาก host สร้าง MCP session ใหม่แต่ส่ง logical chat context เดิมกลับมา การ bind workspace จะ rebind agent เดิมให้เองด้วย จึงไม่ต้อง register ซ้ำ แต่การให้โมเดล worker เริ่มเรียกเครื่องมือเองหลังได้รับ notification ยังต้องอาศัย MCP host ที่รองรับ server notifications หรือให้ worker เรียก `wait` ค้างไว้ หาก host ปิด session หลังจบคำตอบ DWB ไม่สามารถสร้าง turn ใหม่ใน host ให้เองได้ ต้องให้ host reconnect หรือใช้ worker loop ที่คง session ไว้
 
 Agent ที่ยังทำงานอยู่ควรเรียก `dwb_agent` ด้วย `action=heartbeat` เป็นระยะ ระบบจะต่ออายุ lease ให้อัตโนมัติระหว่างการเรียกเครื่องมือของ agent ด้วย
 
@@ -134,7 +134,7 @@ Agent ที่ยังทำงานอยู่ควรเรียก `dwb
 - งานที่มี `priority` สูงกว่าจะถูกพิจารณาก่อนในรอบ auto-dispatch
 - task ที่ติดปัญหาใช้ `block` พร้อมเหตุผลได้ และเปิดกลับเป็น `queued` ด้วย `reopen`
 - task ที่ยกเลิกแล้วใช้ `cancel` และสามารถ `reopen` กลับมาทำใหม่ได้
-- หาก agent ไม่ heartbeat เกิน lease ระบบจะเปลี่ยน agent เป็น `paused` และคืน task ที่กำลังทำกลับเป็น `queued`
+- หาก agent ไม่ heartbeat เกิน lease ระบบจะเปลี่ยน agent เป็น `paused` และคืน task ที่กำลังทำกลับเป็น `queued`; ถ้า MCP session เดิมยังเชื่อมอยู่ broker จะปลุกกลับเป็น `active` และ dispatch งานให้อัตโนมัติ
 - agent ที่ lease หมดอายุจะถูกบล็อกไม่ให้เขียนจนกว่า heartbeat หรือ register ใหม่
 - `changed_files` ต้องเป็น path แบบ relative ภายใน workspace และห้ามใช้ glob; broker จะปฏิเสธ path นอก workspace
 - file lock และ stale-write protection เดิมของ DWB ยังทำงานร่วมกันตามปกติ

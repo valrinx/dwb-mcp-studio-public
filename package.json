@@ -56,7 +56,7 @@
     "start": "node scripts/start.mjs",
     "configure": "node scripts/configure.mjs",
     "doctor": "node scripts/doctor.mjs",
-    "test": "npm run typecheck && npm run build && tsx src/request-context-test.ts && tsx src/payload-guard-test.ts && tsx src/worker-circuit-test.ts && tsx src/session-lifecycle-test.ts && tsx src/workspace-binding-test.ts && tsx src/agent-wake-test.ts && tsx src/agent-task-store-test.ts && tsx src/core-hardening-test.ts && node scripts/public-core-test.mjs && node scripts/dashboard-test.mjs",
+    "test": "npm run typecheck && npm run build && tsx src/request-context-test.ts && tsx src/payload-guard-test.ts && tsx src/worker-circuit-test.ts && tsx src/session-lifecycle-test.ts && tsx src/workspace-binding-test.ts && tsx src/agent-wake-test.ts && tsx src/agent-task-store-test.ts && tsx src/broker-client-test.ts && tsx src/core-hardening-test.ts && node scripts/public-core-test.mjs && node scripts/dashboard-test.mjs",
     "test:integration": "node scripts/integration-test.mjs",
     "test:setup": "node scripts/test-powershell.mjs setup-test",
     "release": "npm run build:launcher && npm run build && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/release.ps1",

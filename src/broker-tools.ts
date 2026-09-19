@@ -78,14 +78,14 @@ export const brokerTools = [
   {
     name: 'dwb_agent',
     description:
-      'Register, inspect, receive, send, and acknowledge messages for an agent working in the current bound workspace. Multiple agents can share one workspace while using separate tasks.',
+      'Register, inspect, receive, send, and acknowledge messages for an agent working in the current bound workspace. Multiple agents can share one workspace while using separate tasks. Connected paused agents are reactivated automatically when the broker dispatches queued work, and a reconnecting chat context can reclaim its paused agent without manual re-registration.',
     inputSchema: {
       type: 'object',
       properties: {
         action: {
           type: 'string',
           description:
-            'Agent operation: register, heartbeat, status, list, inbox, wait, send, ack. Use send for durable agent-to-agent messages and wait after completing a task to stay available without polling.',
+            'Agent operation: register, heartbeat, status, list, inbox, wait, send, ack. Use send for durable agent-to-agent messages. After completing a task, use wait; if it times out with no messages, call wait again immediately to keep this worker session available for automatic wake and dispatch.',
         },
         name: { type: 'string', description: 'Human-readable agent name.' },
         role: {
@@ -105,7 +105,7 @@ export const brokerTools = [
         timeout_ms: {
           type: 'integer',
           description:
-            'Maximum time for action=wait in milliseconds. Defaults to 30000 and is capped at 120000.',
+            'Maximum time for action=wait in milliseconds. Defaults to 30000 and is capped at 120000. A timeout is not completion: call wait again while this agent should remain available.',
         },
         to_agent_id: {
           type: 'string',

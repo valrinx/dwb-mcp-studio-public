@@ -167,6 +167,7 @@ export class AgentTaskStore {
         id TEXT PRIMARY KEY,
         workspace_id TEXT NOT NULL,
         session_id TEXT NOT NULL UNIQUE,
+        context_key TEXT,
         name TEXT NOT NULL,
         role TEXT,
         capabilities_json TEXT NOT NULL DEFAULT '[]',
@@ -184,6 +185,12 @@ export class AgentTaskStore {
         "ALTER TABLE workspace_agents ADD COLUMN capabilities_json TEXT NOT NULL DEFAULT '[]'",
       );
     } catch {}
+    try {
+      this.db.run('ALTER TABLE workspace_agents ADD COLUMN context_key TEXT');
+    } catch {}
+    this.db.run(
+      'CREATE INDEX IF NOT EXISTS workspace_agents_context_idx ON workspace_agents(workspace_id,context_key,status)',
+    );
     this.db.run(`
       CREATE TABLE IF NOT EXISTS workspace_tasks (
         id TEXT PRIMARY KEY,
@@ -395,18 +402,51 @@ export class AgentTaskStore {
     );
   }
 
-  registerAgent(sessionId: string, workspaceId: string, input: AgentInput): AgentView {
+  registerAgent(
+    sessionId: string,
+    workspaceId: string,
+    input: AgentInput,
+    contextKey?: string,
+  ): AgentView {
     this.workspace(workspaceId);
     const name = text(input.name);
     if (!name) throw new Error('Agent name is required.');
     const role = text(input.role) || null;
     const capabilities = list(input.capabilities);
+    const stableContextKey = text(contextKey) || null;
     return this.db.transaction(() => {
       const now = new Date().toISOString();
-      const existing = this.db.one<any>('SELECT * FROM workspace_agents WHERE session_id=?', [
+      let existing = this.db.one<any>('SELECT * FROM workspace_agents WHERE session_id=?', [
         sessionId,
       ]);
+      if (!existing && stableContextKey) {
+        existing = this.db.one<any>(
+          "SELECT * FROM workspace_agents WHERE workspace_id=? AND context_key=? AND status='paused' ORDER BY updated_at DESC,created_at,id LIMIT 1",
+          [workspaceId, stableContextKey],
+        );
+      }
+      if (!existing) {
+        // beta.14 rows may predate context_key. Reclaim only an unambiguous
+        // paused identity so a reconnect can upgrade that row without making
+        // two agents for the same named role. Ambiguous legacy rows stay
+        // separate and require an explicit stable context on a later register.
+        const legacyCandidates = role
+          ? this.db.query<any>(
+              "SELECT * FROM workspace_agents WHERE workspace_id=? AND context_key IS NULL AND status='paused' AND lower(name)=lower(?) AND lower(role)=lower(?) ORDER BY updated_at DESC,created_at,id",
+              [workspaceId, name, role],
+            )
+          : this.db.query<any>(
+              "SELECT * FROM workspace_agents WHERE workspace_id=? AND context_key IS NULL AND status='paused' AND lower(name)=lower(?) AND role IS NULL ORDER BY updated_at DESC,created_at,id",
+              [workspaceId, name],
+            );
+        if (legacyCandidates.length === 1) existing = legacyCandidates[0];
+      }
       if (existing) {
+        const occupied = this.db.one<any>(
+          'SELECT id FROM workspace_agents WHERE session_id=? AND id<>?',
+          [sessionId, existing.id],
+        );
+        if (occupied) throw new Error('Session is already registered to another agent.');
         if (String(existing.workspace_id) !== workspaceId) {
           const active = this.db.one<any>(
             "SELECT id FROM workspace_tasks WHERE assigned_agent_id=? AND status='doing'",
@@ -415,18 +455,30 @@ export class AgentTaskStore {
           if (active) throw new Error('Agent has an active task and cannot change workspace.');
         }
         this.db.run(
-          'UPDATE workspace_agents SET workspace_id=?,name=?,role=?,capabilities_json=?,status=?,last_seen_at=?,updated_at=? WHERE session_id=?',
-          [workspaceId, name, role, JSON.stringify(capabilities), 'active', now, now, sessionId],
+          'UPDATE workspace_agents SET session_id=?,workspace_id=?,context_key=?,name=?,role=?,capabilities_json=?,status=?,last_seen_at=?,updated_at=? WHERE id=?',
+          [
+            sessionId,
+            workspaceId,
+            stableContextKey ?? existing.context_key ?? null,
+            name,
+            role,
+            JSON.stringify(capabilities),
+            'active',
+            now,
+            now,
+            existing.id,
+          ],
         );
         return this.agentView(this.agentRow(String(existing.id)));
       }
       const id = `agent_${randomUUID().slice(0, 8)}`;
       this.db.run(
-        'INSERT INTO workspace_agents(id,workspace_id,session_id,name,role,capabilities_json,status,last_seen_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO workspace_agents(id,workspace_id,session_id,context_key,name,role,capabilities_json,status,last_seen_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
         [
           id,
           workspaceId,
           sessionId,
+          stableContextKey,
           name,
           role,
           JSON.stringify(capabilities),
@@ -437,6 +489,33 @@ export class AgentTaskStore {
         ],
       );
       return this.agentView(this.agentRow(id));
+    });
+  }
+
+  rebindAgentContext(sessionId: string, workspaceId: string, contextKey: string): AgentView | null {
+    this.workspace(workspaceId);
+    const stableContextKey = text(contextKey);
+    if (!stableContextKey) return null;
+    return this.db.transaction(() => {
+      const occupied = this.db.one<any>('SELECT * FROM workspace_agents WHERE session_id=?', [
+        sessionId,
+      ]);
+      if (occupied) {
+        return String(occupied.workspace_id) === workspaceId
+          ? this.agentView(occupied)
+          : null;
+      }
+      const row = this.db.one<any>(
+        "SELECT * FROM workspace_agents WHERE workspace_id=? AND context_key=? AND status='paused' ORDER BY updated_at DESC,created_at,id LIMIT 1",
+        [workspaceId, stableContextKey],
+      );
+      if (!row) return null;
+      const now = new Date().toISOString();
+      this.db.run(
+        'UPDATE workspace_agents SET session_id=?,status=?,last_seen_at=?,updated_at=? WHERE id=? AND status=?',
+        [sessionId, 'active', now, now, row.id, 'paused'],
+      );
+      return this.agentView(this.agentRow(String(row.id)));
     });
   }
 
@@ -477,6 +556,27 @@ export class AgentTaskStore {
       row.id,
     ]);
     return this.agentView(this.agentRow(String(row.id)));
+  }
+
+  wakeConnectedAgents(sessionIds: Iterable<string>): AgentView[] {
+    const ids = [...new Set([...sessionIds].map((id) => id.trim()).filter(Boolean))];
+    if (!ids.length) return [];
+    return this.db.transaction(() => {
+      const placeholders = ids.map(() => '?').join(',');
+      const paused = this.db.query<any>(
+        `SELECT * FROM workspace_agents WHERE status='paused' AND session_id IN (${placeholders})`,
+        ids,
+      );
+      if (!paused.length) return [];
+      const now = new Date().toISOString();
+      for (const agent of paused) {
+        this.db.run(
+          'UPDATE workspace_agents SET status=?,last_seen_at=?,updated_at=? WHERE id=? AND status=?',
+          ['active', now, now, agent.id, 'paused'],
+        );
+      }
+      return paused.map((agent) => this.agentView(this.agentRow(String(agent.id))));
+    });
   }
 
   listAgents(workspaceId: string): AgentView[] {

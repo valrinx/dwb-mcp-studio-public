@@ -53,6 +53,14 @@ function notifySession(sessionId: string, message: BrokerNotification): boolean 
   return delivered;
 }
 
+function connectedSessionIds(): Set<string> {
+  const sessionIds = new Set<string>();
+  for (const [socket, ctx] of sockets) {
+    if (!ctx.closed && !socket.destroyed && ctx.sessionId) sessionIds.add(ctx.sessionId);
+  }
+  return sessionIds;
+}
+
 function deliverAgentMessages(messages: AgentMessageView[]): void {
   for (const message of messages) {
     const agent = agentTasks.agentById(message.toAgentId);
@@ -76,6 +84,7 @@ function deliverPendingAgentMessages(sessionId: string): void {
 }
 
 function dispatchAndNotifyAgentMessages(): number {
+  agentTasks.wakeConnectedAgents(connectedSessionIds());
   const dispatched = agentTasks.dispatchQueuedTasks();
   agentTasks.syncHandoffMessages();
   deliverAgentMessages(agentTasks.listPendingAgentMessages());
@@ -113,6 +122,7 @@ async function controlTool(
   sessionId: string,
   name: string,
   args: Record<string, unknown>,
+  logicalContext: BrokerLogicalContext | null,
   requestId?: string,
   lifetime?: RequestLifetime,
 ): Promise<unknown | typeof NOT_A_CONTROL_TOOL> {
@@ -156,14 +166,29 @@ async function controlTool(
       })),
     });
   }
-  if (name === 'workspace') return textResult(await registry.workspace(sessionId, args));
+  if (name === 'workspace') {
+    const result = await registry.workspace(sessionId, args);
+    if (logicalContext) {
+      const workspace = workspaceStore.current(sessionId);
+      if (workspace) {
+        agentTasks.rebindAgentContext(sessionId, workspace.id, logicalContext.key);
+        dispatchAndNotifyAgentMessages();
+      }
+    }
+    return textResult(result);
+  }
   if (name === 'dwb_agent' || name === 'dwb_task') {
     const workspace = workspaceStore.current(sessionId);
     if (!workspace) throw new Error('Bind a workspace before using agent/task coordination.');
     const action = typeof args.action === 'string' ? args.action.trim() : '';
     if (name === 'dwb_agent') {
       if (action === 'register') {
-        const agent = agentTasks.registerAgent(sessionId, workspace.id, args as any);
+        const agent = agentTasks.registerAgent(
+          sessionId,
+          workspace.id,
+          args as any,
+          logicalContext?.key,
+        );
         dispatchAndNotifyAgentMessages();
         deliverPendingAgentMessages(sessionId);
         return textResult({ agent });
@@ -429,6 +454,10 @@ async function handle(
   }
   if (!ctx.sessionId) throw new Error('hello must be sent before broker requests');
   const sessionId = await registry.resolveContext(ctx.sessionId, requestContext(message));
+  // A session can be alive while its agent lease is paused because the host
+  // spent longer than the lease between tool calls. Treat any subsequent
+  // request as proof of life before trying to dispatch queued work.
+  if (agentTasks.wakeConnectedAgents([sessionId]).length) dispatchAndNotifyAgentMessages();
   if (message.method === 'list_tools') {
     const upstream = await registry.listTools(sessionId, lifetime);
     return { ...upstream, tools: [...upstream.tools, ...brokerTools] };
@@ -443,6 +472,7 @@ async function handle(
       sessionId,
       params.name,
       params.arguments,
+      requestContext(message),
       message.id,
       lifetime,
     );

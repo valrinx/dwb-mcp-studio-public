@@ -84,6 +84,7 @@ export class BrokerClient {
   private readonly pending = new Map<string, Pending>();
   private buffer = '';
   private reconnectPromise: Promise<void> | null = null;
+  private reconnectLoopPromise: Promise<void> | null = null;
   private explicitlyClosed = false;
   private notificationHandler: ((notification: BrokerNotification) => void) | null = null;
   sessionId: string | null = null;
@@ -101,7 +102,9 @@ export class BrokerClient {
       if (this.socket === socket) this.onData(chunk);
     });
     socket.on('close', () => {
-      if (this.socket === socket) this.failPending(new Error('DWB broker connection closed'));
+      if (this.socket !== socket) return;
+      this.failPending(new Error('DWB broker connection closed'));
+      this.scheduleReconnect();
     });
     socket.on('error', (error) => {
       if (this.socket === socket) this.failPending(error);
@@ -191,6 +194,24 @@ export class BrokerClient {
       );
       this.pending.delete(id);
     }
+  }
+
+  private scheduleReconnect(): void {
+    if (this.explicitlyClosed || this.reconnectLoopPromise || !this.socket.destroyed) return;
+    this.reconnectLoopPromise = (async () => {
+      let delayMs = 250;
+      while (!this.explicitlyClosed && this.socket.destroyed) {
+        try {
+          await this.ensureConnected();
+          return;
+        } catch {
+          await new Promise((resolveDelay) => setTimeout(resolveDelay, delayMs));
+          delayMs = Math.min(delayMs * 2, 5_000);
+        }
+      }
+    })().finally(() => {
+      this.reconnectLoopPromise = null;
+    });
   }
 
   private async ensureConnected(): Promise<void> {

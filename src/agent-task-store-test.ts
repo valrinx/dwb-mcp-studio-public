@@ -219,6 +219,123 @@ test('stale agents are paused and their active tasks return to the queue', async
   }
 });
 
+test('connected paused agents are woken before queued work is dispatched', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const agent = tasks.registerAgent('session-connected', workspace.id, {
+      name: 'connected-worker',
+      role: 'backend',
+      capabilities: ['typescript'],
+    } as any);
+    const task = tasks.createTask(workspace.id, {
+      title: 'Wake and dispatch me',
+      requiredRole: 'backend',
+      requiredCapabilities: ['typescript'],
+      fileScopes: ['src/**'],
+    } as any);
+    tasks.claimTask(task.id, agent.id);
+    tasks.reclaimStaleAgents(new Date(Date.now() + 10 * 60_000));
+    assert.equal(tasks.listAgents(workspace.id)[0].status, 'paused');
+    assert.equal(tasks.getTask(task.id)?.status, 'queued');
+
+    const woken = tasks.wakeConnectedAgents(['session-connected']);
+    assert.equal(woken.length, 1);
+    assert.equal(woken[0].id, agent.id);
+    assert.equal(woken[0].status, 'active');
+    assert.equal(tasks.dispatchQueuedTasks(), 1);
+    assert.equal(tasks.getTask(task.id)?.status, 'doing');
+    assert.equal(tasks.getTask(task.id)?.assignedAgentId, agent.id);
+  } finally {
+    db.close();
+  }
+});
+
+test('rebinds a paused agent to a new MCP session by stable chat context', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const original = tasks.registerAgent(
+      'session-before-reconnect',
+      workspace.id,
+      { name: 'planner', role: 'planner', capabilities: ['analysis'] } as any,
+      'context:planner-chat',
+    );
+    const task = tasks.createTask(workspace.id, {
+      title: 'Resume planner work',
+      requiredRole: 'planner',
+      requiredCapabilities: ['analysis'],
+      fileScopes: ['backend/**'],
+    } as any);
+    tasks.claimTask(task.id, original.id);
+    tasks.reclaimStaleAgents(new Date(Date.now() + 10 * 60_000));
+    assert.equal(tasks.listAgents(workspace.id)[0].status, 'paused');
+    assert.equal(tasks.getTask(task.id)?.status, 'queued');
+
+    const rebound = tasks.rebindAgentContext(
+      'session-after-reconnect',
+      workspace.id,
+      'context:planner-chat',
+    );
+    assert.equal(rebound?.id, original.id);
+    assert.equal(rebound?.sessionId, 'session-after-reconnect');
+    assert.equal(rebound?.status, 'active');
+    assert.equal(tasks.dispatchQueuedTasks(), 1);
+    assert.equal(tasks.getTask(task.id)?.assignedAgentId, original.id);
+  } finally {
+    db.close();
+  }
+});
+
+test('upgrades a legacy paused agent when its named role reconnects', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const original = tasks.registerAgent('session-legacy', workspace.id, {
+      name: 'Planner',
+      role: 'planner',
+      capabilities: ['analysis'],
+    } as any);
+    tasks.reclaimStaleAgents(new Date(Date.now() + 10 * 60_000));
+    assert.equal(tasks.listAgents(workspace.id)[0].status, 'paused');
+    assert.equal(
+      (db.one<any>('SELECT context_key FROM workspace_agents WHERE id=?', [original.id]) ?? {})
+        .context_key,
+      null,
+    );
+
+    const rebound = tasks.registerAgent(
+      'session-legacy-reconnected',
+      workspace.id,
+      { name: 'Planner', role: 'planner', capabilities: ['analysis'] } as any,
+      'meta.openai/session:sha256:legacy-planner',
+    );
+    assert.equal(rebound.id, original.id);
+    assert.equal(rebound.sessionId, 'session-legacy-reconnected');
+    assert.equal(rebound.status, 'active');
+    assert.equal(
+      (
+        db.one<any>('SELECT context_key FROM workspace_agents WHERE id=?', [original.id]) ?? {}
+      ).context_key,
+      'meta.openai/session:sha256:legacy-planner',
+    );
+  } finally {
+    db.close();
+  }
+});
+
 test('dispatch selects an available agent matching role and capabilities', async () => {
   const root = resolve('logs', `agent-tasks-${randomUUID()}`);
   await mkdir(root, { recursive: true });
