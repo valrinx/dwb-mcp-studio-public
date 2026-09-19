@@ -380,3 +380,76 @@ test('completed task exposes a validated handoff for the next agent', async () =
     db.close();
   }
 });
+
+test('dependent agents exchange a persisted handoff and acknowledgement', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const producer = tasks.registerAgent('session-message-producer', workspace.id, {
+      name: 'producer',
+      role: 'backend',
+      capabilities: ['api'],
+    } as any);
+    const reviewer = tasks.registerAgent('session-message-reviewer', workspace.id, {
+      name: 'reviewer',
+      role: 'reviewer',
+      capabilities: ['review'],
+    } as any);
+    const source = tasks.createTask(workspace.id, {
+      title: 'Build API',
+      fileScopes: ['src/api/**'],
+    } as any);
+    const followUp = tasks.createTask(workspace.id, {
+      title: 'Review API',
+      fileScopes: ['src/review/**'],
+      dependsOn: [source.id],
+      requiredRole: 'reviewer',
+      requiredCapabilities: ['review'],
+    } as any);
+    tasks.claimTask(source.id, producer.id);
+    tasks.completeTask(
+      source.id,
+      producer.id,
+      { artifact: 'api-ready' },
+      {
+        summary: 'API is ready for review.',
+        changedFiles: ['src/api/routes.ts'],
+        testResult: { passed: true },
+      },
+    );
+
+    assert.equal(tasks.dispatchQueuedTasks(), 1);
+    assert.equal(tasks.getTask(followUp.id)?.assignedAgentId, reviewer.id);
+    const created = tasks.syncHandoffMessages();
+    assert.equal(created.length, 1);
+    const message = created[0];
+    assert.equal(message.kind, 'task_handoff');
+    assert.equal(message.fromAgentId, producer.id);
+    assert.equal(message.toAgentId, reviewer.id);
+    assert.equal(message.status, 'pending');
+    assert.deepEqual(message.payload, {
+      sourceTaskId: source.id,
+      targetTaskId: followUp.id,
+      handoff: tasks.getTask(source.id)?.handoff,
+      result: { artifact: 'api-ready' },
+    });
+    assert.deepEqual(tasks.listAgentMessages(workspace.id, reviewer.id), [message]);
+    assert.equal(tasks.syncHandoffMessages().length, 0);
+
+    const acknowledgement = tasks.acknowledgeAgentMessage(message.id, reviewer.id);
+    assert.equal(acknowledgement.message.status, 'acknowledged');
+    assert.equal(acknowledgement.response?.kind, 'handoff_ack');
+    assert.equal(acknowledgement.response?.fromAgentId, reviewer.id);
+    assert.equal(acknowledgement.response?.toAgentId, producer.id);
+    assert.deepEqual(tasks.listAgentMessages(workspace.id, producer.id), [
+      acknowledgement.response,
+    ]);
+    assert.deepEqual(tasks.listAgentMessages(workspace.id, reviewer.id), []);
+  } finally {
+    db.close();
+  }
+});

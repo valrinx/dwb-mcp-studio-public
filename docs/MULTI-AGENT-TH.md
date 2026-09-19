@@ -47,6 +47,25 @@ DWB รองรับการให้ MCP session หลายตัวทำ
 
 agent ถัดไปอ่านข้อมูลได้ด้วย `dwb_task action=handoff` หรือดูรวมใน `history`; หากต้องคืนงานให้เรียก `release`
 
+ถ้า task ถัดไปมี `depends_on` และถูก dispatch ให้ Agent อื่น broker จะส่ง notification ให้อัตโนมัติ Agent ปลายทางดูข้อความที่ยังไม่ได้ตอบรับได้ด้วย:
+
+```json
+{
+  "action": "inbox"
+}
+```
+
+เมื่อตอบรับแล้ว:
+
+```json
+{
+  "action": "ack",
+  "message_id": "msg_1234abcd"
+}
+```
+
+broker จะส่ง `handoff_ack` กลับไปยัง Agent ต้นทางด้วย ถ้า Agent ปลายทาง offline ข้อความจะค้างอยู่ใน inbox จนกว่าจะกลับมาเชื่อมต่อและตอบรับ
+
 Agent ที่ยังทำงานอยู่ควรเรียก `dwb_agent` ด้วย `action=heartbeat` เป็นระยะ ระบบจะต่ออายุ lease ให้อัตโนมัติระหว่างการเรียกเครื่องมือของ agent ด้วย
 
 ## กติกาความปลอดภัย
@@ -66,7 +85,7 @@ Agent ที่ยังทำงานอยู่ควรเรียก `dwb
 
 ## เครื่องมือที่เพิ่ม
 
-- `dwb_agent`: `register`, `heartbeat`, `status`, `list`
+- `dwb_agent`: `register`, `heartbeat`, `status`, `list`, `inbox`, `ack`
 - `dwb_task`: `create`, `list`, `claim`, `dispatch`, `complete`, `handoff`, `release`, `block`, `cancel`, `reopen`, `history`
 
 ข้อมูล agent และ task เก็บในฐานข้อมูล workspace เดิมของ DWB จึงอยู่ร่วมกับ workspace binding และยังคงอยู่เมื่อ broker restart

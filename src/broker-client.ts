@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import {
   brokerEndpoint,
   type BrokerLogicalContext,
+  type BrokerNotification,
   type BrokerRequest,
   type BrokerResponse,
 } from './broker-protocol.js';
@@ -84,6 +85,7 @@ export class BrokerClient {
   private buffer = '';
   private reconnectPromise: Promise<void> | null = null;
   private explicitlyClosed = false;
+  private notificationHandler: ((notification: BrokerNotification) => void) | null = null;
   sessionId: string | null = null;
 
   private constructor(
@@ -143,7 +145,7 @@ export class BrokerClient {
       const line = this.buffer.slice(0, newline).trim();
       this.buffer = this.buffer.slice(newline + 1);
       if (!line) continue;
-      let message: BrokerResponse;
+      let message: BrokerResponse | BrokerNotification;
       try {
         message = JSON.parse(line);
       } catch {
@@ -153,7 +155,15 @@ export class BrokerClient {
     }
   }
 
-  private settle(message: BrokerResponse): void {
+  onNotification(handler: (notification: BrokerNotification) => void): void {
+    this.notificationHandler = handler;
+  }
+
+  private settle(message: BrokerResponse | BrokerNotification): void {
+    if ('method' in message) {
+      this.notificationHandler?.(message);
+      return;
+    }
     if (typeof message.sessionId === 'string' && message.sessionId)
       this.sessionId = message.sessionId;
     const pending = this.pending.get(message.id);

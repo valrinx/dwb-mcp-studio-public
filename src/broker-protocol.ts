@@ -46,3 +46,8 @@ export type BrokerResponse = {
   result?: unknown;
   error?: { code: string; message: string; details?: unknown };
 };
+
+export type BrokerNotification = {
+  method: 'notifications/agent_message';
+  params: { message: unknown };
+};

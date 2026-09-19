@@ -78,13 +78,13 @@ export const brokerTools = [
   {
     name: 'dwb_agent',
     description:
-      'Register and inspect an agent working in the current bound workspace. Multiple agents can share one workspace while using separate tasks.',
+      'Register, inspect, receive, and acknowledge messages for an agent working in the current bound workspace. Multiple agents can share one workspace while using separate tasks.',
     inputSchema: {
       type: 'object',
       properties: {
         action: {
           type: 'string',
-          description: 'Agent operation: register, heartbeat, status, list.',
+          description: 'Agent operation: register, heartbeat, status, list, inbox, ack.',
         },
         name: { type: 'string', description: 'Human-readable agent name.' },
         role: {
@@ -95,6 +95,10 @@ export const brokerTools = [
           type: 'array',
           items: { type: 'string' },
           description: 'Capabilities this agent can perform, for example typescript or api.',
+        },
+        message_id: {
+          type: 'string',
+          description: 'Message ID to acknowledge with action=ack.',
         },
       },
       required: ['action'],

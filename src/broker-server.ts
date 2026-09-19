@@ -5,6 +5,7 @@ import {
   brokerEndpoint,
   BROKER_PROTOCOL_VERSION,
   type BrokerLogicalContext,
+  type BrokerNotification,
   type BrokerRequest,
   type BrokerResponse,
 } from './broker-protocol.js';
@@ -13,7 +14,7 @@ import { EventLog } from './event-log.js';
 import { SessionRegistry } from './session-registry.js';
 import { CoreStore } from './core-store.js';
 import { WorkspaceStore } from './workspace-store.js';
-import { AgentTaskStore, type TaskStatus } from './agent-task-store.js';
+import { AgentTaskStore, type AgentMessageView, type TaskStatus } from './agent-task-store.js';
 
 const endpoint = brokerEndpoint();
 const log = new EventLog();
@@ -21,7 +22,7 @@ let coreDb: CoreStore;
 let workspaceStore: WorkspaceStore;
 let agentTasks: AgentTaskStore;
 let registry: SessionRegistry;
-const sockets = new Set<Socket>();
+const sockets = new Map<Socket, ConnectionContext>();
 let markReady!: () => void;
 const ready = new Promise<void>((resolve) => {
   markReady = resolve;
@@ -35,8 +36,44 @@ type ConnectionContext = {
   routingChange: Promise<void> | null;
 };
 
-function response(socket: Socket, message: BrokerResponse): void {
+function response(socket: Socket, message: BrokerResponse | BrokerNotification): void {
   if (!socket.destroyed) socket.write(JSON.stringify(message) + '\n');
+}
+
+function notifySession(sessionId: string, message: BrokerNotification): boolean {
+  let delivered = false;
+  for (const [socket, ctx] of sockets) {
+    if (!ctx.closed && ctx.sessionId === sessionId && !socket.destroyed) {
+      response(socket, message);
+      delivered = true;
+    }
+  }
+  return delivered;
+}
+
+function deliverAgentMessages(messages: AgentMessageView[]): void {
+  for (const message of messages) {
+    const agent = agentTasks.agentById(message.toAgentId);
+    if (!agent) continue;
+    const delivered = notifySession(agent.sessionId, {
+      method: 'notifications/agent_message',
+      params: { message },
+    });
+    if (delivered) agentTasks.markAgentMessageDelivered(message.id);
+  }
+}
+
+function deliverPendingAgentMessages(sessionId: string): void {
+  const workspace = workspaceStore.current(sessionId);
+  const agent = workspace ? agentTasks.agentForSession(sessionId, workspace.id) : null;
+  if (!workspace || !agent) return;
+  deliverAgentMessages(agentTasks.listAgentMessages(workspace.id, agent.id));
+}
+
+function dispatchAndNotifyAgentMessages(): number {
+  const dispatched = agentTasks.dispatchQueuedTasks();
+  deliverAgentMessages(agentTasks.syncHandoffMessages());
+  return dispatched;
 }
 
 function errorResponse(id: string, error: unknown): BrokerResponse {
@@ -118,16 +155,37 @@ async function controlTool(
     if (!workspace) throw new Error('Bind a workspace before using agent/task coordination.');
     const action = typeof args.action === 'string' ? args.action.trim() : '';
     if (name === 'dwb_agent') {
-      if (action === 'register')
-        return textResult({
-          agent: agentTasks.registerAgent(sessionId, workspace.id, args as any),
-        });
+      if (action === 'register') {
+        const agent = agentTasks.registerAgent(sessionId, workspace.id, args as any);
+        dispatchAndNotifyAgentMessages();
+        deliverPendingAgentMessages(sessionId);
+        return textResult({ agent });
+      }
       if (action === 'heartbeat')
         return textResult({ agent: agentTasks.heartbeatAgent(sessionId, workspace.id) });
       if (action === 'status')
         return textResult({ agent: agentTasks.agentForSession(sessionId, workspace.id) });
       if (action === 'list') return textResult({ agents: agentTasks.listAgents(workspace.id) });
-      throw new Error('dwb_agent.action must be one of: register, heartbeat, status, list.');
+      const agent = agentTasks.agentForSession(sessionId, workspace.id);
+      if (!agent) throw new Error('Register an agent before reading or acknowledging messages.');
+      agentTasks.touchAgent(sessionId, workspace.id);
+      if (action === 'inbox') {
+        dispatchAndNotifyAgentMessages();
+        return textResult({
+          agent,
+          messages: agentTasks.listAgentMessages(workspace.id, agent.id),
+        });
+      }
+      if (action === 'ack') {
+        const messageId = typeof args.message_id === 'string' ? args.message_id.trim() : '';
+        if (!messageId) throw new Error('message_id is required.');
+        const acknowledgement = agentTasks.acknowledgeAgentMessage(messageId, agent.id);
+        if (acknowledgement.response) deliverAgentMessages([acknowledgement.response]);
+        return textResult(acknowledgement);
+      }
+      throw new Error(
+        'dwb_agent.action must be one of: register, heartbeat, status, list, inbox, ack.',
+      );
     }
     agentTasks.touchAgent(sessionId, workspace.id);
     if (action === 'create')
@@ -153,25 +211,34 @@ async function controlTool(
     }
     const taskId = typeof args.task_id === 'string' ? args.task_id.trim() : '';
     if (!taskId) throw new Error('task_id is required.');
-    if (action === 'dispatch') return textResult({ task: agentTasks.dispatchTask(taskId) });
+    if (action === 'dispatch') {
+      const task = agentTasks.dispatchTask(taskId);
+      dispatchAndNotifyAgentMessages();
+      return textResult({ task });
+    }
     const agent = agentTasks.agentForSession(sessionId, workspace.id);
     if (!agent) throw new Error('Register an agent before claiming or updating tasks.');
-    if (action === 'claim') return textResult({ task: agentTasks.claimTask(taskId, agent.id) });
-    if (action === 'complete')
-      return textResult({
-        task: agentTasks.completeTask(
-          taskId,
-          agent.id,
-          args.result,
-          [args.summary, args.changed_files, args.test_result].some((value) => value !== undefined)
-            ? {
-                summary: args.summary,
-                changedFiles: args.changed_files,
-                testResult: args.test_result,
-              }
-            : undefined,
-        ),
-      });
+    if (action === 'claim') {
+      const task = agentTasks.claimTask(taskId, agent.id);
+      dispatchAndNotifyAgentMessages();
+      return textResult({ task });
+    }
+    if (action === 'complete') {
+      const task = agentTasks.completeTask(
+        taskId,
+        agent.id,
+        args.result,
+        [args.summary, args.changed_files, args.test_result].some((value) => value !== undefined)
+          ? {
+              summary: args.summary,
+              changedFiles: args.changed_files,
+              testResult: args.test_result,
+            }
+          : undefined,
+      );
+      dispatchAndNotifyAgentMessages();
+      return textResult({ task });
+    }
     if (action === 'handoff') return textResult(agentTasks.getTaskHandoff(taskId));
     if (action === 'release') return textResult({ task: agentTasks.releaseTask(taskId, agent.id) });
     if (action === 'block')
@@ -233,6 +300,8 @@ async function handle(
     try {
       ctx.sessionId = await registry.attach(cwd, adapterPid, preferredSessionId);
       if (ctx.closed) await registry.detach(ctx.sessionId);
+      deliverPendingAgentMessages(ctx.sessionId);
+      dispatchAndNotifyAgentMessages();
     } finally {
       ctx.initializing = false;
     }
@@ -304,7 +373,6 @@ async function handle(
 }
 
 function accept(socket: Socket): void {
-  sockets.add(socket);
   const ctx: ConnectionContext = {
     sessionId: null,
     adapterPid: null,
@@ -312,6 +380,7 @@ function accept(socket: Socket): void {
     closed: false,
     routingChange: null,
   };
+  sockets.set(socket, ctx);
   const requests = new Map<string, RequestLifetime>();
   let buffer = '';
   socket.setEncoding('utf8');
@@ -414,7 +483,7 @@ async function shutdown(code: number): Promise<void> {
   if (heartbeat) clearInterval(heartbeat);
   heartbeat = null;
   const closed = new Promise<void>((resolve) => server.close(() => resolve()));
-  for (const socket of sockets) socket.destroy();
+  for (const socket of sockets.keys()) socket.destroy();
   await registry?.shutdown().catch(() => {});
   await log
     .write({ type: 'broker_stopped', details: { brokerPid: process.pid, endpoint } })
@@ -468,7 +537,7 @@ async function main(): Promise<void> {
       const reclaimed = agentTasks.reclaimStaleAgents();
       if (reclaimed.agents || reclaimed.tasks)
         await log.write({ type: 'agent_lease_reclaimed', details: reclaimed });
-      const dispatched = agentTasks.dispatchQueuedTasks();
+      const dispatched = dispatchAndNotifyAgentMessages();
       if (dispatched) await log.write({ type: 'agent_tasks_dispatched', details: { dispatched } });
       await log.write({
         type: 'broker_heartbeat',

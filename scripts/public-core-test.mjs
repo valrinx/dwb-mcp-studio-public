@@ -105,9 +105,18 @@ assert.equal(clientConfig.args[0], resolve(relocated, 'scripts', 'start.mjs'));
 
 const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
 const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
+const { LoggingMessageNotificationSchema } = await import('@modelcontextprotocol/sdk/types.js');
 const clients = [];
 let brokerPid;
 const call = (client, name, args = {}) => client.callTool({ name, arguments: args });
+const waitFor = async (predicate, timeoutMs = 3000) => {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 25));
+  }
+  throw new Error('Timed out waiting for broker notification');
+};
 try {
   for (let n = 0; n < 2; n++) {
     const transport = new StdioClientTransport({
@@ -121,6 +130,13 @@ try {
     await client.connect(transport);
   }
   const [a, b] = clients.map((c) => c.client);
+  const notifications = { a: [], b: [] };
+  a.setNotificationHandler(LoggingMessageNotificationSchema, (notification) => {
+    notifications.a.push(notification.params.data);
+  });
+  b.setNotificationHandler(LoggingMessageNotificationSchema, (notification) => {
+    notifications.b.push(notification.params.data);
+  });
   brokerPid = (await call(a, 'dwb_broker_status')).structuredContent.brokerPid;
   const beforeDoctor = (await call(a, 'dwb_broker_status')).structuredContent;
   const liveReport = JSON.parse(run('doctor.mjs').stdout);
@@ -304,6 +320,43 @@ try {
     (await call(b, 'dwb_task', { action: 'complete', task_id: frontendTask.id })).structuredContent
       .task.status,
     'done',
+  );
+  const reviewTask = (
+    await call(a, 'dwb_task', {
+      action: 'create',
+      title: 'Review backend handoff',
+      file_scopes: ['src/review/**'],
+      depends_on: [backendTask.id],
+      required_role: 'frontend',
+      required_capabilities: ['ui'],
+    })
+  ).structuredContent.task;
+  const dispatchedReview = (
+    await call(a, 'dwb_task', { action: 'dispatch', task_id: reviewTask.id })
+  ).structuredContent.task;
+  assert.equal(dispatchedReview.assignedAgentId, agentB.id);
+  await waitFor(() =>
+    notifications.b.some(
+      (data) => data?.type === 'agent_message' && data.message?.kind === 'task_handoff',
+    ),
+  );
+  const handoffNotification = notifications.b.find(
+    (data) => data?.type === 'agent_message' && data.message?.kind === 'task_handoff',
+  );
+  assert.equal(handoffNotification.message.targetTaskId, reviewTask.id);
+  const inbox = (await call(b, 'dwb_agent', { action: 'inbox' })).structuredContent.messages;
+  assert.ok(inbox.some((message) => message.id === handoffNotification.message.id));
+  const acknowledgement = (
+    await call(b, 'dwb_agent', {
+      action: 'ack',
+      message_id: handoffNotification.message.id,
+    })
+  ).structuredContent;
+  assert.equal(acknowledgement.message.status, 'acknowledged');
+  await waitFor(() =>
+    notifications.a.some(
+      (data) => data?.type === 'agent_message' && data.message?.kind === 'handoff_ack',
+    ),
   );
   const dispatchTask = (
     await call(a, 'dwb_task', {

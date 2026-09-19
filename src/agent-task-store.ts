@@ -12,6 +12,24 @@ export type TaskHandoff = {
   testResult: unknown;
 };
 
+export type AgentMessageStatus = 'pending' | 'delivered' | 'acknowledged';
+export type AgentMessageKind = 'task_handoff' | 'handoff_ack';
+
+export type AgentMessageView = {
+  id: string;
+  workspaceId: string;
+  sourceTaskId: string;
+  targetTaskId: string;
+  fromAgentId: string | null;
+  toAgentId: string;
+  kind: AgentMessageKind;
+  payload: Record<string, unknown>;
+  status: AgentMessageStatus;
+  createdAt: string;
+  deliveredAt: string | null;
+  acknowledgedAt: string | null;
+};
+
 export type AgentView = {
   id: string;
   workspaceId: string;
@@ -202,6 +220,23 @@ export class AgentTaskStore {
         details_json TEXT
       )
     `);
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS workspace_agent_messages (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        source_task_id TEXT NOT NULL,
+        target_task_id TEXT NOT NULL,
+        from_agent_id TEXT,
+        to_agent_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        delivered_at TEXT,
+        acknowledged_at TEXT,
+        UNIQUE(source_task_id,target_task_id,to_agent_id,kind)
+      )
+    `);
   }
 
   private workspace(id: string): WorkspaceView {
@@ -214,6 +249,10 @@ export class AgentTaskStore {
 
   private taskRow(id: string) {
     return this.db.one<any>('SELECT * FROM workspace_tasks WHERE id=?', [id]);
+  }
+
+  private messageRow(id: string) {
+    return this.db.one<any>('SELECT * FROM workspace_agent_messages WHERE id=?', [id]);
   }
 
   private agentView(row: any): AgentView {
@@ -249,6 +288,23 @@ export class AgentTaskStore {
       createdAt: String(row.created_at),
       updatedAt: String(row.updated_at),
       completedAt: row.completed_at == null ? null : String(row.completed_at),
+    };
+  }
+
+  private messageView(row: any): AgentMessageView {
+    return {
+      id: String(row.id),
+      workspaceId: String(row.workspace_id),
+      sourceTaskId: String(row.source_task_id),
+      targetTaskId: String(row.target_task_id),
+      fromAgentId: row.from_agent_id == null ? null : String(row.from_agent_id),
+      toAgentId: String(row.to_agent_id),
+      kind: String(row.kind) as AgentMessageKind,
+      payload: parseJson<Record<string, unknown>>(row.payload_json, {}),
+      status: String(row.status) as AgentMessageStatus,
+      createdAt: String(row.created_at),
+      deliveredAt: row.delivered_at == null ? null : String(row.delivered_at),
+      acknowledgedAt: row.acknowledged_at == null ? null : String(row.acknowledged_at),
     };
   }
 
@@ -479,6 +535,156 @@ export class AgentTaskStore {
     const task = this.getTask(taskId);
     if (!task) throw new Error('Unknown task.');
     return { task, handoff: task.handoff };
+  }
+
+  agentById(agentId: string): AgentView | null {
+    const row = this.agentRow(agentId);
+    return row ? this.agentView(row) : null;
+  }
+
+  syncHandoffMessages(): AgentMessageView[] {
+    return this.db.transaction(() => {
+      const doneTasks = this.db.query<any>("SELECT * FROM workspace_tasks WHERE status='done'");
+      const activeTasks = this.db.query<any>(
+        "SELECT * FROM workspace_tasks WHERE status='doing' AND assigned_agent_id IS NOT NULL",
+      );
+      const created: AgentMessageView[] = [];
+      for (const target of activeTasks) {
+        const dependencies = parseJson<string[]>(target.depends_on_json, []);
+        for (const source of doneTasks) {
+          if (!dependencies.includes(String(source.id))) continue;
+          const fromAgentId =
+            source.assigned_agent_id == null ? null : String(source.assigned_agent_id);
+          const toAgentId = String(target.assigned_agent_id);
+          if (fromAgentId === toAgentId) continue;
+          const existing = this.db.one<any>(
+            'SELECT * FROM workspace_agent_messages WHERE source_task_id=? AND target_task_id=? AND to_agent_id=? AND kind=?',
+            [source.id, target.id, toAgentId, 'task_handoff'],
+          );
+          if (existing) continue;
+          const sourceTask = this.taskView(source);
+          const id = `msg_${randomUUID().slice(0, 8)}`;
+          const now = new Date().toISOString();
+          const payload = {
+            sourceTaskId: String(source.id),
+            targetTaskId: String(target.id),
+            handoff: sourceTask.handoff,
+            result: sourceTask.result,
+          };
+          this.db.run(
+            'INSERT INTO workspace_agent_messages(id,workspace_id,source_task_id,target_task_id,from_agent_id,to_agent_id,kind,payload_json,status,created_at,delivered_at,acknowledged_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+            [
+              id,
+              String(target.workspace_id),
+              String(source.id),
+              String(target.id),
+              fromAgentId,
+              toAgentId,
+              'task_handoff',
+              JSON.stringify(payload),
+              'pending',
+              now,
+              null,
+              null,
+            ],
+          );
+          created.push(this.messageView(this.messageRow(id)));
+        }
+      }
+      return created;
+    });
+  }
+
+  listAgentMessages(
+    workspaceId: string,
+    agentId: string,
+    status?: AgentMessageStatus,
+  ): AgentMessageView[] {
+    this.workspace(workspaceId);
+    const rows = status
+      ? this.db.query<any>(
+          'SELECT * FROM workspace_agent_messages WHERE workspace_id=? AND to_agent_id=? AND status=? ORDER BY created_at,id',
+          [workspaceId, agentId, status],
+        )
+      : this.db.query<any>(
+          "SELECT * FROM workspace_agent_messages WHERE workspace_id=? AND to_agent_id=? AND status IN ('pending','delivered') ORDER BY created_at,id",
+          [workspaceId, agentId],
+        );
+    return rows.map((row) => this.messageView(row));
+  }
+
+  markAgentMessageDelivered(messageId: string): AgentMessageView {
+    return this.db.transaction(() => {
+      const row = this.messageRow(messageId);
+      if (!row) throw new Error('Unknown agent message.');
+      if (String(row.status) === 'acknowledged') return this.messageView(row);
+      const now = new Date().toISOString();
+      this.db.run(
+        'UPDATE workspace_agent_messages SET status=?,delivered_at=COALESCE(delivered_at,?) WHERE id=?',
+        ['delivered', now, messageId],
+      );
+      return this.messageView(this.messageRow(messageId));
+    });
+  }
+
+  acknowledgeAgentMessage(
+    messageId: string,
+    agentId: string,
+  ): { message: AgentMessageView; response: AgentMessageView | null } {
+    return this.db.transaction(() => {
+      const row = this.messageRow(messageId);
+      if (!row) throw new Error('Unknown agent message.');
+      const agent = this.requireAgent(agentId, String(row.workspace_id));
+      if (String(row.to_agent_id) !== agent.id)
+        throw new Error('Only the receiving agent can acknowledge this message.');
+      const existingResponse = row.from_agent_id
+        ? this.db.one<any>(
+            'SELECT * FROM workspace_agent_messages WHERE source_task_id=? AND target_task_id=? AND to_agent_id=? AND kind=?',
+            [row.source_task_id, row.target_task_id, row.from_agent_id, 'handoff_ack'],
+          )
+        : null;
+      if (String(row.status) !== 'acknowledged') {
+        this.db.run('UPDATE workspace_agent_messages SET status=?,acknowledged_at=? WHERE id=?', [
+          'acknowledged',
+          new Date().toISOString(),
+          messageId,
+        ]);
+      }
+      if (existingResponse || !row.from_agent_id)
+        return {
+          message: this.messageView(this.messageRow(messageId)),
+          response: existingResponse ? this.messageView(existingResponse) : null,
+        };
+      const responseId = `msg_${randomUUID().slice(0, 8)}`;
+      const now = new Date().toISOString();
+      const payload = {
+        messageId: String(row.id),
+        sourceTaskId: String(row.source_task_id),
+        targetTaskId: String(row.target_task_id),
+        status: 'acknowledged',
+      };
+      this.db.run(
+        'INSERT INTO workspace_agent_messages(id,workspace_id,source_task_id,target_task_id,from_agent_id,to_agent_id,kind,payload_json,status,created_at,delivered_at,acknowledged_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+        [
+          responseId,
+          String(row.workspace_id),
+          String(row.source_task_id),
+          String(row.target_task_id),
+          agent.id,
+          String(row.from_agent_id),
+          'handoff_ack',
+          JSON.stringify(payload),
+          'pending',
+          now,
+          null,
+          null,
+        ],
+      );
+      return {
+        message: this.messageView(this.messageRow(messageId)),
+        response: this.messageView(this.messageRow(responseId)),
+      };
+    });
   }
 
   listTaskEvents(taskId: string): TaskEventView[] {
