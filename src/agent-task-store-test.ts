@@ -218,3 +218,70 @@ test('stale agents are paused and their active tasks return to the queue', async
     db.close();
   }
 });
+
+test('dispatch selects an available agent matching role and capabilities', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const backend = tasks.registerAgent('session-backend', workspace.id, {
+      name: 'backend',
+      role: 'backend',
+      capabilities: ['typescript', 'api'],
+    } as any);
+    tasks.registerAgent('session-frontend', workspace.id, {
+      name: 'frontend',
+      role: 'frontend',
+      capabilities: ['typescript', 'ui'],
+    } as any);
+    const task = tasks.createTask(workspace.id, {
+      title: 'Dispatch API task',
+      fileScopes: ['src/api/**'],
+      requiredRole: 'backend',
+      requiredCapabilities: ['typescript', 'api'],
+      priority: 10,
+    } as any);
+
+    const dispatched = tasks.dispatchTask(task.id);
+    assert.equal(dispatched.status, 'doing');
+    assert.equal(dispatched.assignedAgentId, backend.id);
+  } finally {
+    db.close();
+  }
+});
+
+test('automatic dispatch assigns eligible queued tasks and leaves unmatched tasks queued', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const agent = tasks.registerAgent('session-auto', workspace.id, {
+      name: 'auto-backend',
+      role: 'backend',
+      capabilities: ['api'],
+    } as any);
+    const eligible = tasks.createTask(workspace.id, {
+      title: 'Eligible',
+      requiredRole: 'backend',
+      requiredCapabilities: ['api'],
+      priority: 20,
+    } as any);
+    const unmatched = tasks.createTask(workspace.id, {
+      title: 'Unmatched',
+      requiredRole: 'frontend',
+      priority: 10,
+    } as any);
+
+    assert.equal(tasks.dispatchQueuedTasks(), 1);
+    assert.equal(tasks.getTask(eligible.id)?.assignedAgentId, agent.id);
+    assert.equal(tasks.getTask(unmatched.id)?.status, 'queued');
+  } finally {
+    db.close();
+  }
+});

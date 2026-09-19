@@ -91,6 +91,11 @@ export const brokerTools = [
           type: 'string',
           description: 'Optional agent role such as backend, frontend, or tester.',
         },
+        capabilities: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Capabilities this agent can perform, for example typescript or api.',
+        },
       },
       required: ['action'],
     },
@@ -106,7 +111,7 @@ export const brokerTools = [
         action: {
           type: 'string',
           description:
-            'Task operation: create, list, claim, complete, release, block, cancel, reopen, history.',
+            'Task operation: create, list, claim, dispatch, complete, release, block, cancel, reopen, history.',
         },
         title: { type: 'string' },
         description: { type: 'string' },
@@ -121,6 +126,13 @@ export const brokerTools = [
           items: { type: 'string' },
           description: 'Task IDs that must be done before this task can be claimed.',
         },
+        required_role: { type: 'string', description: 'Role required for automatic dispatch.' },
+        required_capabilities: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Capabilities required for automatic dispatch.',
+        },
+        priority: { type: 'integer', description: 'Higher priority tasks dispatch first.' },
         task_id: { type: 'string' },
         reason: { type: 'string', description: 'Reason for blocking a task.' },
         result: { description: 'Optional JSON result saved when completing a task.' },

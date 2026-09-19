@@ -213,10 +213,20 @@ try {
   await mkdir(resolve(bound, 'src', 'backend'), { recursive: true });
   await mkdir(resolve(bound, 'src', 'frontend'), { recursive: true });
   const agentA = (
-    await call(a, 'dwb_agent', { action: 'register', name: 'backend-agent', role: 'backend' })
+    await call(a, 'dwb_agent', {
+      action: 'register',
+      name: 'backend-agent',
+      role: 'backend',
+      capabilities: ['typescript', 'api'],
+    })
   ).structuredContent.agent;
   const agentB = (
-    await call(b, 'dwb_agent', { action: 'register', name: 'frontend-agent', role: 'frontend' })
+    await call(b, 'dwb_agent', {
+      action: 'register',
+      name: 'frontend-agent',
+      role: 'frontend',
+      capabilities: ['typescript', 'ui'],
+    })
   ).structuredContent.agent;
   assert.equal(agentA.workspaceId, agentB.workspaceId);
   const backendTask = (
@@ -276,6 +286,21 @@ try {
     (await call(b, 'dwb_task', { action: 'complete', task_id: frontendTask.id })).structuredContent
       .task.status,
     'done',
+  );
+  const dispatchTask = (
+    await call(a, 'dwb_task', {
+      action: 'create',
+      title: 'Dispatched API lane',
+      file_scopes: ['src/dispatch/**'],
+      required_role: 'backend',
+      required_capabilities: ['typescript', 'api'],
+      priority: 20,
+    })
+  ).structuredContent.task;
+  assert.equal(
+    (await call(a, 'dwb_task', { action: 'dispatch', task_id: dispatchTask.id })).structuredContent
+      .task.assignedAgentId,
+    agentA.id,
   );
   assert.equal(
     (await call(a, 'dwb_agent', { action: 'heartbeat' })).structuredContent.agent.status,

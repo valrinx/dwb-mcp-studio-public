@@ -12,6 +12,7 @@ export type AgentView = {
   sessionId: string;
   name: string;
   role: string | null;
+  capabilities: string[];
   status: AgentStatus;
   lastSeenAt: string;
   createdAt: string;
@@ -23,6 +24,9 @@ export type TaskView = {
   workspaceId: string;
   title: string;
   description: string;
+  requiredRole: string | null;
+  requiredCapabilities: string[];
+  priority: number;
   status: TaskStatus;
   assignedAgentId: string | null;
   fileScopes: string[];
@@ -43,12 +47,15 @@ export type TaskEventView = {
   details: Record<string, unknown>;
 };
 
-type AgentInput = { name: unknown; role?: unknown };
+type AgentInput = { name: unknown; role?: unknown; capabilities?: unknown };
 type TaskInput = {
   title: unknown;
   description?: unknown;
   fileScopes?: unknown;
   dependsOn?: unknown;
+  requiredRole?: unknown;
+  requiredCapabilities?: unknown;
+  priority?: unknown;
 };
 
 function text(value: unknown): string {
@@ -126,6 +133,7 @@ export class AgentTaskStore {
         session_id TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         role TEXT,
+        capabilities_json TEXT NOT NULL DEFAULT '[]',
         status TEXT NOT NULL,
         last_seen_at TEXT,
         created_at TEXT NOT NULL,
@@ -135,12 +143,20 @@ export class AgentTaskStore {
     try {
       this.db.run('ALTER TABLE workspace_agents ADD COLUMN last_seen_at TEXT');
     } catch {}
+    try {
+      this.db.run(
+        "ALTER TABLE workspace_agents ADD COLUMN capabilities_json TEXT NOT NULL DEFAULT '[]'",
+      );
+    } catch {}
     this.db.run(`
       CREATE TABLE IF NOT EXISTS workspace_tasks (
         id TEXT PRIMARY KEY,
         workspace_id TEXT NOT NULL,
         title TEXT NOT NULL,
         description TEXT NOT NULL,
+        required_role TEXT,
+        required_capabilities_json TEXT NOT NULL DEFAULT '[]',
+        priority INTEGER NOT NULL DEFAULT 0,
         status TEXT NOT NULL,
         assigned_agent_id TEXT,
         file_scopes_json TEXT NOT NULL,
@@ -151,6 +167,15 @@ export class AgentTaskStore {
         completed_at TEXT
       )
     `);
+    for (const column of [
+      'ALTER TABLE workspace_tasks ADD COLUMN required_role TEXT',
+      "ALTER TABLE workspace_tasks ADD COLUMN required_capabilities_json TEXT NOT NULL DEFAULT '[]'",
+      'ALTER TABLE workspace_tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0',
+    ]) {
+      try {
+        this.db.run(column);
+      } catch {}
+    }
     this.db.run(`
       CREATE TABLE IF NOT EXISTS workspace_task_events (
         id INTEGER PRIMARY KEY,
@@ -184,6 +209,7 @@ export class AgentTaskStore {
       sessionId: String(row.session_id),
       name: String(row.name),
       role: row.role == null ? null : String(row.role),
+      capabilities: parseJson<string[]>(row.capabilities_json, []),
       status: String(row.status) as AgentStatus,
       lastSeenAt: String(row.last_seen_at ?? row.updated_at),
       createdAt: String(row.created_at),
@@ -197,6 +223,9 @@ export class AgentTaskStore {
       workspaceId: String(row.workspace_id),
       title: String(row.title),
       description: String(row.description),
+      requiredRole: row.required_role == null ? null : String(row.required_role),
+      requiredCapabilities: parseJson<string[]>(row.required_capabilities_json, []),
+      priority: Number(row.priority ?? 0),
       status: String(row.status) as TaskStatus,
       assignedAgentId: row.assigned_agent_id == null ? null : String(row.assigned_agent_id),
       fileScopes: parseJson<string[]>(row.file_scopes_json, []),
@@ -259,6 +288,7 @@ export class AgentTaskStore {
     const name = text(input.name);
     if (!name) throw new Error('Agent name is required.');
     const role = text(input.role) || null;
+    const capabilities = list(input.capabilities);
     return this.db.transaction(() => {
       const now = new Date().toISOString();
       const existing = this.db.one<any>('SELECT * FROM workspace_agents WHERE session_id=?', [
@@ -273,15 +303,26 @@ export class AgentTaskStore {
           if (active) throw new Error('Agent has an active task and cannot change workspace.');
         }
         this.db.run(
-          'UPDATE workspace_agents SET workspace_id=?,name=?,role=?,status=?,last_seen_at=?,updated_at=? WHERE session_id=?',
-          [workspaceId, name, role, 'active', now, now, sessionId],
+          'UPDATE workspace_agents SET workspace_id=?,name=?,role=?,capabilities_json=?,status=?,last_seen_at=?,updated_at=? WHERE session_id=?',
+          [workspaceId, name, role, JSON.stringify(capabilities), 'active', now, now, sessionId],
         );
         return this.agentView(this.agentRow(String(existing.id)));
       }
       const id = `agent_${randomUUID().slice(0, 8)}`;
       this.db.run(
-        'INSERT INTO workspace_agents(id,workspace_id,session_id,name,role,status,last_seen_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)',
-        [id, workspaceId, sessionId, name, role, 'active', now, now, now],
+        'INSERT INTO workspace_agents(id,workspace_id,session_id,name,role,capabilities_json,status,last_seen_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
+        [
+          id,
+          workspaceId,
+          sessionId,
+          name,
+          role,
+          JSON.stringify(capabilities),
+          'active',
+          now,
+          now,
+          now,
+        ],
       );
       return this.agentView(this.agentRow(id));
     });
@@ -342,6 +383,10 @@ export class AgentTaskStore {
     const description = text(input.description);
     const fileScopes = this.normalizeScopes(workspace, input.fileScopes);
     const dependsOn = list(input.dependsOn);
+    const requiredRole = text(input.requiredRole) || null;
+    const requiredCapabilities = list(input.requiredCapabilities);
+    const priorityValue = Number(input.priority ?? 0);
+    const priority = Number.isFinite(priorityValue) ? Math.trunc(priorityValue) : 0;
     return this.db.transaction(() => {
       for (const dependency of dependsOn) {
         const row = this.taskRow(dependency);
@@ -351,12 +396,15 @@ export class AgentTaskStore {
       const now = new Date().toISOString();
       const id = `task_${randomUUID().slice(0, 8)}`;
       this.db.run(
-        'INSERT INTO workspace_tasks(id,workspace_id,title,description,status,assigned_agent_id,file_scopes_json,depends_on_json,result_json,created_at,updated_at,completed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO workspace_tasks(id,workspace_id,title,description,required_role,required_capabilities_json,priority,status,assigned_agent_id,file_scopes_json,depends_on_json,result_json,created_at,updated_at,completed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         [
           id,
           workspaceId,
           title,
           description,
+          requiredRole,
+          JSON.stringify(requiredCapabilities),
+          priority,
           'queued',
           null,
           JSON.stringify(fileScopes),
@@ -395,14 +443,68 @@ export class AgentTaskStore {
     this.workspace(workspaceId);
     const rows = status
       ? this.db.query<any>(
-          'SELECT * FROM workspace_tasks WHERE workspace_id=? AND status=? ORDER BY created_at,id',
+          'SELECT * FROM workspace_tasks WHERE workspace_id=? AND status=? ORDER BY priority DESC,created_at,id',
           [workspaceId, status],
         )
       : this.db.query<any>(
-          'SELECT * FROM workspace_tasks WHERE workspace_id=? ORDER BY created_at,id',
+          'SELECT * FROM workspace_tasks WHERE workspace_id=? ORDER BY priority DESC,created_at,id',
           [workspaceId],
         );
     return rows.map((row) => this.taskView(row));
+  }
+
+  dispatchTask(taskId: string): TaskView {
+    const row = this.taskRow(taskId);
+    if (!row) throw new Error('Unknown task.');
+    if (String(row.status) !== 'queued' || row.assigned_agent_id)
+      throw new Error('Task is not available to dispatch.');
+    const requiredRole =
+      row.required_role == null ? null : String(row.required_role).toLocaleLowerCase();
+    const requiredCapabilities = parseJson<string[]>(row.required_capabilities_json, []).map(
+      (item) => item.toLocaleLowerCase(),
+    );
+    const candidates = this.db.query<any>(
+      "SELECT * FROM workspace_agents WHERE workspace_id=? AND status='active' ORDER BY last_seen_at DESC,created_at,id",
+      [String(row.workspace_id)],
+    );
+    for (const candidate of candidates) {
+      const role = candidate.role == null ? '' : String(candidate.role).toLocaleLowerCase();
+      if (requiredRole && role !== requiredRole) continue;
+      const capabilities = parseJson<string[]>(candidate.capabilities_json, []).map((item) =>
+        item.toLocaleLowerCase(),
+      );
+      if (!requiredCapabilities.every((item) => capabilities.includes(item))) continue;
+      const busy = this.db.one<any>(
+        "SELECT id FROM workspace_tasks WHERE assigned_agent_id=? AND status='doing' LIMIT 1",
+        [candidate.id],
+      );
+      if (busy) continue;
+      return this.claimTask(taskId, String(candidate.id));
+    }
+    throw new Error(
+      `DWB_TASK_NO_AGENT: no available active agent matches task role/capabilities for ${taskId}.`,
+    );
+  }
+
+  dispatchQueuedTasks(): number {
+    const queued = this.db.query<any>(
+      "SELECT id FROM workspace_tasks WHERE status='queued' AND (required_role IS NOT NULL OR required_capabilities_json <> '[]') ORDER BY priority DESC,created_at,id",
+    );
+    let dispatched = 0;
+    for (const task of queued) {
+      try {
+        this.dispatchTask(String(task.id));
+        dispatched += 1;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (
+          !message.startsWith('DWB_TASK_NO_AGENT:') &&
+          !message.startsWith('DWB_TASK_SCOPE_CONFLICT:')
+        )
+          throw error;
+      }
+    }
+    return dispatched;
   }
 
   claimTask(taskId: string, agentId: string): TaskView {

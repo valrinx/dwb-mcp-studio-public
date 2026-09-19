@@ -137,6 +137,9 @@ async function controlTool(
           description: args.description,
           fileScopes: args.file_scopes,
           dependsOn: args.depends_on,
+          requiredRole: args.required_role,
+          requiredCapabilities: args.required_capabilities,
+          priority: args.priority,
         }),
       });
     if (action === 'list') {
@@ -150,6 +153,7 @@ async function controlTool(
     }
     const taskId = typeof args.task_id === 'string' ? args.task_id.trim() : '';
     if (!taskId) throw new Error('task_id is required.');
+    if (action === 'dispatch') return textResult({ task: agentTasks.dispatchTask(taskId) });
     const agent = agentTasks.agentForSession(sessionId, workspace.id);
     if (!agent) throw new Error('Register an agent before claiming or updating tasks.');
     if (action === 'claim') return textResult({ task: agentTasks.claimTask(taskId, agent.id) });
@@ -172,7 +176,7 @@ async function controlTool(
         events: agentTasks.listTaskEvents(taskId),
       });
     throw new Error(
-      'dwb_task.action must be one of: create, list, claim, complete, release, block, cancel, reopen, history.',
+      'dwb_task.action must be one of: create, list, claim, dispatch, complete, release, block, cancel, reopen, history.',
     );
   }
   if (name === 'dwb_resume_session') {
@@ -450,6 +454,8 @@ async function main(): Promise<void> {
       const reclaimed = agentTasks.reclaimStaleAgents();
       if (reclaimed.agents || reclaimed.tasks)
         await log.write({ type: 'agent_lease_reclaimed', details: reclaimed });
+      const dispatched = agentTasks.dispatchQueuedTasks();
+      if (dispatched) await log.write({ type: 'agent_tasks_dispatched', details: { dispatched } });
       await log.write({
         type: 'broker_heartbeat',
         details: { endpoint, ...registry.status, sessionList: registry.listSessions() },
