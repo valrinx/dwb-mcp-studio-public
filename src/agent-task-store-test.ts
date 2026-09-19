@@ -606,6 +606,41 @@ test('dependent agents exchange a persisted handoff and acknowledgement', async 
   }
 });
 
+test('dispatch leaves dependency-blocked work queued without stopping other work', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const coder = tasks.registerAgent('session-dependency-queue', workspace.id, {
+      name: 'coder',
+      role: 'coder',
+      capabilities: ['implementation'],
+    } as any);
+    const prerequisite = tasks.createTask(workspace.id, { title: 'Prepare implementation' });
+    const blocked = tasks.createTask(workspace.id, {
+      title: 'Blocked follow-up',
+      requiredRole: 'coder',
+      dependsOn: [prerequisite.id],
+      priority: 10,
+    } as any);
+    const ready = tasks.createTask(workspace.id, {
+      title: 'Independent implementation',
+      requiredRole: 'coder',
+      priority: 1,
+    } as any);
+
+    assert.equal(tasks.dispatchQueuedTasks(), 1);
+    assert.equal(tasks.getTask(blocked.id)?.status, 'queued');
+    assert.equal(tasks.getTask(ready.id)?.status, 'doing');
+    assert.equal(tasks.getTask(ready.id)?.assignedAgentId, coder.id);
+  } finally {
+    db.close();
+  }
+});
+
 test('dispatch sends an assignment to the worker and returns an acknowledgement to main', async () => {
   const root = resolve('logs', `agent-tasks-${randomUUID()}`);
   await mkdir(root, { recursive: true });

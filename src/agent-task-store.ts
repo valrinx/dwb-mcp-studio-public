@@ -953,7 +953,8 @@ export class AgentTaskStore {
         const message = error instanceof Error ? error.message : String(error);
         if (
           !message.startsWith('DWB_TASK_NO_AGENT:') &&
-          !message.startsWith('DWB_TASK_SCOPE_CONFLICT:')
+          !message.startsWith('DWB_TASK_SCOPE_CONFLICT:') &&
+          !message.startsWith('Task dependency is not complete:')
         )
           throw error;
       }

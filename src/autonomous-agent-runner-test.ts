@@ -133,6 +133,57 @@ test('retries a failed autonomous worker after it exits', () => {
 
   assert.equal(supervisor.reconcile(), 1);
   first.emit('exit', 1, null);
-  assert.equal(supervisor.reconcile(), 1);
+  assert.equal(supervisor.reconcile(), 0);
   assert.equal(launches, 2);
+});
+
+test('rebinds a just-registered worker before recovering its unfinished task on exit', () => {
+  const child = new FakeChild();
+  let current = snapshot({ agents: [] });
+  const paused: string[] = [];
+  const supervisor = new AutonomousAgentSupervisor(
+    {
+      dashboardSnapshot: () => current,
+      pauseAgent: (agentId) => {
+        paused.push(agentId);
+        return { agents: 1, tasks: 1 };
+      },
+    },
+    {
+      resolveRef: () => ({ root: 'C:\\work\\baccarat' }),
+    },
+    {
+      enabled: true,
+      retryMs: 0,
+      spawn: () => child as any,
+    },
+  );
+
+  assert.equal(supervisor.reconcile(), 1);
+  current = snapshot({
+    agents: [
+      {
+        id: 'agent-auto-planner',
+        workspaceId: 'workspace-1',
+        sessionId: 'new-session',
+        name: 'Auto planner',
+        role: 'planner',
+        capabilities: ['requirements-analysis'],
+        status: 'active',
+        lastSeenAt: '',
+        createdAt: '',
+        updatedAt: '',
+      },
+    ],
+    tasks: [
+      {
+        ...snapshot().tasks[0],
+        status: 'doing',
+        assignedAgentId: 'agent-auto-planner',
+      },
+    ],
+  });
+
+  child.emit('exit', 0, null);
+  assert.deepEqual(paused, ['agent-auto-planner']);
 });

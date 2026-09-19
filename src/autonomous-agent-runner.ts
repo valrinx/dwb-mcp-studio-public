@@ -290,6 +290,7 @@ export class AutonomousAgentSupervisor {
     child.stderr?.on('data', capture);
     child.once('exit', (code) => {
       const launch = this.launches.get(key);
+      if (launch && !launch.agentId) this.bindLaunchAgents(this.tasks.dashboardSnapshot());
       this.launches.delete(key);
       if (launch?.agentId) this.tasks.pauseAgent?.(launch.agentId, 'autonomous_worker_exit');
       if (code !== 0) this.retryAt.set(key, Date.now() + this.retryMs);
@@ -300,13 +301,16 @@ export class AutonomousAgentSupervisor {
         code,
         ...(output ? { error: output } : {}),
       });
+      this.reconcile();
     });
     child.once('error', (error) => {
       const launch = this.launches.get(key);
+      if (launch && !launch.agentId) this.bindLaunchAgents(this.tasks.dashboardSnapshot());
       this.launches.delete(key);
       if (launch?.agentId) this.tasks.pauseAgent?.(launch.agentId, 'autonomous_worker_error');
       this.retryAt.set(key, Date.now() + this.retryMs);
       this.onEvent?.({ type: 'error', key, profile: launchProfile, error: String(error) });
+      this.reconcile();
     });
     this.onEvent?.({ type: 'started', key, profile: launchProfile });
     return true;
