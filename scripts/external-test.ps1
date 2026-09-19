@@ -10,6 +10,14 @@ function Assert([bool]$Value,[string]$Message) { if(-not $Value){throw $Message}
 $paths=Get-DwbExternalPaths
 Assert (-not (Get-DwbManagedTunnelState).Ready) 'Empty app must not discover another app tunnel.'
 Assert (-not (Get-DwbManagedWorkerState).Ready) 'Empty app must not discover another app worker.'
+$stage=New-DwbWorkerInstallStage
+try {
+  Assert ((Test-Path -LiteralPath $stage -PathType Container)) 'Worker install stage was not created.'
+  Assert ($stage.Length -lt 220) 'Worker install stage is not short enough for Windows child processes.'
+  Assert ((Split-Path -Leaf $stage) -match '^\.install-worker-[a-f0-9]{32}$') 'Worker install stage name is not restricted.'
+} finally {
+  if(Test-Path -LiteralPath $stage){ Remove-Item -LiteralPath $stage -Recurse -Force }
+}
 $null=New-Item -ItemType Directory -Path $paths.Root -Force
 $null=New-Item -ItemType Directory -Path $paths.WorkerRoot -Force
 $sentinel=Join-Path $paths.WorkerRoot 'old-install.txt'

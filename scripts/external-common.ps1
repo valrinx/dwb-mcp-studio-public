@@ -41,6 +41,19 @@ function Backup-DwbInvalidWorker([string]$WorkerRoot) {
   Move-Item -LiteralPath $full -Destination $backup
   return $backup
 }
+function Assert-DwbWorkerStagePath([string]$Stage) {
+  $stageRoot=[IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetTempPath()) 'dwb-mcp-studio'))
+  $full=[IO.Path]::GetFullPath($Stage)
+  if (-not $full.StartsWith($stageRoot+'\',[StringComparison]::OrdinalIgnoreCase) -or (Split-Path -Parent $full) -ne $stageRoot -or (Split-Path -Leaf $full) -notmatch '^\.install-worker-[a-f0-9]{32}$') { throw 'Unexpected worker install stage path.' }
+}
+function New-DwbWorkerInstallStage {
+  $stageRoot=[IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetTempPath()) 'dwb-mcp-studio'))
+  $null=New-Item -ItemType Directory -Path $stageRoot -Force
+  do { $stage=Join-Path $stageRoot ('.install-worker-'+[Guid]::NewGuid().ToString('N')) } while (Test-Path -LiteralPath $stage)
+  Assert-DwbWorkerStagePath $stage
+  $null=New-Item -ItemType Directory -Path $stage
+  return $stage
+}
 function Get-DwbManagedTunnelState {
   $paths=Get-DwbExternalPaths
   try {
@@ -92,15 +105,17 @@ function Install-DwbExternal {
     if (-not $machine.NodeReady -or -not $machine.NpmReady) { throw 'Install Node.js 22.16 or later with npm first.' }
     if (-not (Get-DwbManagedWorkerState).Ready) {
       if (Test-Path -LiteralPath $paths.WorkerRoot) { Backup-DwbInvalidWorker $paths.WorkerRoot | Write-Output }
-      $stage=Join-Path $paths.Root ('.install-worker-'+[Guid]::NewGuid().ToString('N'))
-      Assert-DwbExternalPath $stage
-      $null=New-Item -ItemType Directory -Path $stage
-      # Explicit registry/version; no dependency is copied from another application.
-      Invoke-DwbNode $machine.Node @($machine.Npm,'install','--prefix',$stage,'--save-exact','--no-audit','--no-fund','--registry=https://registry.npmjs.org','@wonderwhy-er/desktop-commander@0.2.50') $paths.App | Write-Output
-      $worker=Get-DwbWorkerState (Join-Path $stage 'node_modules\@wonderwhy-er\desktop-commander\dist\index.js')
-      if (-not $worker.Ready) { throw $worker.Message }
-      Assert-DwbExternalPath $stage; Assert-DwbExternalPath $paths.WorkerRoot
-      Move-Item -LiteralPath $stage -Destination $paths.WorkerRoot
+      $stage=New-DwbWorkerInstallStage
+      try {
+        # Explicit registry/version; no dependency is copied from another application.
+        Invoke-DwbNode $machine.Node @($machine.Npm,'install','--prefix',$stage,'--save-exact','--no-audit','--no-fund','--registry=https://registry.npmjs.org','@wonderwhy-er/desktop-commander@0.2.50') $paths.App | Write-Output
+        $worker=Get-DwbWorkerState (Join-Path $stage 'node_modules\@wonderwhy-er\desktop-commander\dist\index.js')
+        if (-not $worker.Ready) { throw $worker.Message }
+        Assert-DwbWorkerStagePath $stage; Assert-DwbExternalPath $paths.WorkerRoot
+        Move-Item -LiteralPath $stage -Destination $paths.WorkerRoot
+      } finally {
+        if (Test-Path -LiteralPath $stage) { Assert-DwbWorkerStagePath $stage; Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue }
+      }
     }
     if (-not (Get-DwbManagedTunnelState).Ready) {
       if (Test-Path -LiteralPath $paths.TunnelRoot) { throw 'Tunnel installation is incomplete or unsupported. Rename external/tunnel-client to keep a backup, then retry.' }
