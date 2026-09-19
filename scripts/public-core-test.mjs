@@ -277,6 +277,50 @@ try {
       .task.status,
     'done',
   );
+  assert.equal(
+    (await call(a, 'dwb_agent', { action: 'heartbeat' })).structuredContent.agent.status,
+    'active',
+  );
+  const lifecycleTask = (
+    await call(a, 'dwb_task', {
+      action: 'create',
+      title: 'Lifecycle lane',
+      file_scopes: ['src/lifecycle/**'],
+    })
+  ).structuredContent.task;
+  assert.equal(
+    (await call(a, 'dwb_task', { action: 'claim', task_id: lifecycleTask.id })).structuredContent
+      .task.status,
+    'doing',
+  );
+  assert.equal(
+    (
+      await call(a, 'dwb_task', {
+        action: 'block',
+        task_id: lifecycleTask.id,
+        reason: 'Waiting for review',
+      })
+    ).structuredContent.task.status,
+    'blocked',
+  );
+  assert.equal(
+    (await call(a, 'dwb_task', { action: 'reopen', task_id: lifecycleTask.id })).structuredContent
+      .task.status,
+    'queued',
+  );
+  assert.equal(
+    (await call(a, 'dwb_task', { action: 'claim', task_id: lifecycleTask.id })).structuredContent
+      .task.status,
+    'doing',
+  );
+  assert.equal(
+    (await call(a, 'dwb_task', { action: 'cancel', task_id: lifecycleTask.id })).structuredContent
+      .task.status,
+    'cancelled',
+  );
+  const history = (await call(a, 'dwb_task', { action: 'history', task_id: lifecycleTask.id }))
+    .structuredContent.events;
+  assert.ok(history.some((event) => event.toStatus === 'blocked'));
   const stateBefore = await readFile(env.DWB_BROKER_STATE_PATH, 'utf8');
   const duplicate = spawnSync(process.execPath, [resolve(relocated, 'dist', 'broker-server.js')], {
     env,

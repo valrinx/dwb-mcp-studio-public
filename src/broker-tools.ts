@@ -82,7 +82,10 @@ export const brokerTools = [
     inputSchema: {
       type: 'object',
       properties: {
-        action: { type: 'string', description: 'Agent operation: register, status, list.' },
+        action: {
+          type: 'string',
+          description: 'Agent operation: register, heartbeat, status, list.',
+        },
         name: { type: 'string', description: 'Human-readable agent name.' },
         role: {
           type: 'string',
@@ -102,7 +105,8 @@ export const brokerTools = [
       properties: {
         action: {
           type: 'string',
-          description: 'Task operation: create, list, claim, complete, release.',
+          description:
+            'Task operation: create, list, claim, complete, release, block, cancel, reopen, history.',
         },
         title: { type: 'string' },
         description: { type: 'string' },
@@ -118,10 +122,11 @@ export const brokerTools = [
           description: 'Task IDs that must be done before this task can be claimed.',
         },
         task_id: { type: 'string' },
+        reason: { type: 'string', description: 'Reason for blocking a task.' },
         result: { description: 'Optional JSON result saved when completing a task.' },
         status: {
           type: 'string',
-          description: 'Optional list filter: queued, doing, done, blocked.',
+          description: 'Optional list filter: queued, doing, done, blocked, cancelled.',
         },
       },
       required: ['action'],

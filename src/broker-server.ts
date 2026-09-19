@@ -122,11 +122,14 @@ async function controlTool(
         return textResult({
           agent: agentTasks.registerAgent(sessionId, workspace.id, args as any),
         });
+      if (action === 'heartbeat')
+        return textResult({ agent: agentTasks.heartbeatAgent(sessionId, workspace.id) });
       if (action === 'status')
         return textResult({ agent: agentTasks.agentForSession(sessionId, workspace.id) });
       if (action === 'list') return textResult({ agents: agentTasks.listAgents(workspace.id) });
-      throw new Error('dwb_agent.action must be one of: register, status, list.');
+      throw new Error('dwb_agent.action must be one of: register, heartbeat, status, list.');
     }
+    agentTasks.touchAgent(sessionId, workspace.id);
     if (action === 'create')
       return textResult({
         task: agentTasks.createTask(workspace.id, {
@@ -138,8 +141,8 @@ async function controlTool(
       });
     if (action === 'list') {
       const status = typeof args.status === 'string' ? args.status : undefined;
-      if (status && !['queued', 'doing', 'done', 'blocked'].includes(status))
-        throw new Error('dwb_task.status must be queued, doing, done, or blocked.');
+      if (status && !['queued', 'doing', 'done', 'blocked', 'cancelled'].includes(status))
+        throw new Error('dwb_task.status must be queued, doing, done, blocked, or cancelled.');
       return textResult({
         tasks: agentTasks.listTasks(workspace.id, status as TaskStatus | undefined),
         agent: agentTasks.agentForSession(sessionId, workspace.id),
@@ -153,7 +156,24 @@ async function controlTool(
     if (action === 'complete')
       return textResult({ task: agentTasks.completeTask(taskId, agent.id, args.result) });
     if (action === 'release') return textResult({ task: agentTasks.releaseTask(taskId, agent.id) });
-    throw new Error('dwb_task.action must be one of: create, list, claim, complete, release.');
+    if (action === 'block')
+      return textResult({
+        task: agentTasks.blockTask(
+          taskId,
+          agent.id,
+          typeof args.reason === 'string' ? args.reason : '',
+        ),
+      });
+    if (action === 'cancel') return textResult({ task: agentTasks.cancelTask(taskId, agent.id) });
+    if (action === 'reopen') return textResult({ task: agentTasks.reopenTask(taskId, agent.id) });
+    if (action === 'history')
+      return textResult({
+        task: agentTasks.getTask(taskId),
+        events: agentTasks.listTaskEvents(taskId),
+      });
+    throw new Error(
+      'dwb_task.action must be one of: create, list, claim, complete, release, block, cancel, reopen, history.',
+    );
   }
   if (name === 'dwb_resume_session') {
     const target = args.session_id;
@@ -427,6 +447,9 @@ async function main(): Promise<void> {
   heartbeat = setInterval(() => {
     void (async () => {
       await registry.reclaimIdleWorkers();
+      const reclaimed = agentTasks.reclaimStaleAgents();
+      if (reclaimed.agents || reclaimed.tasks)
+        await log.write({ type: 'agent_lease_reclaimed', details: reclaimed });
       await log.write({
         type: 'broker_heartbeat',
         details: { endpoint, ...registry.status, sessionList: registry.listSessions() },

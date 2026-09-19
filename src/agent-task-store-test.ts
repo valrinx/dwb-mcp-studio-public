@@ -124,3 +124,97 @@ test('workspace-wide task blocks every other active task scope', async () => {
     db.close();
   }
 });
+
+test('task lifecycle records transitions and allows blocked work to be reopened', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const agent = tasks.registerAgent('session-lifecycle', workspace.id, { name: 'lifecycle' });
+    const task = tasks.createTask(workspace.id, { title: 'Lifecycle task' });
+
+    tasks.claimTask(task.id, agent.id);
+    assert.equal(tasks.blockTask(task.id, agent.id, 'Waiting for credentials').status, 'blocked');
+    assert.equal(tasks.getTask(task.id)?.assignedAgentId, null);
+    assert.equal(tasks.reopenTask(task.id, agent.id).status, 'queued');
+    assert.equal(tasks.claimTask(task.id, agent.id).status, 'doing');
+    assert.equal(tasks.cancelTask(task.id, agent.id).status, 'cancelled');
+    assert.equal(tasks.reopenTask(task.id, agent.id).status, 'queued');
+
+    const history = tasks.listTaskEvents(task.id);
+    assert.deepEqual(
+      history.map((event) => [event.fromStatus, event.toStatus]),
+      [
+        ['queued', 'doing'],
+        ['doing', 'blocked'],
+        ['blocked', 'queued'],
+        ['queued', 'doing'],
+        ['doing', 'cancelled'],
+        ['cancelled', 'queued'],
+      ],
+    );
+    assert.equal(
+      history.find((event) => event.toStatus === 'blocked')?.details.reason,
+      'Waiting for credentials',
+    );
+  } finally {
+    db.close();
+  }
+});
+
+test('task dependencies prevent a claim until the dependency is complete', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const agent = tasks.registerAgent('session-dependency', workspace.id, { name: 'dependency' });
+    const foundation = tasks.createTask(workspace.id, { title: 'Foundation' });
+    const followUp = tasks.createTask(workspace.id, {
+      title: 'Follow up',
+      dependsOn: [foundation.id],
+    });
+    assert.throws(() => tasks.claimTask(followUp.id, agent.id), /dependency is not complete/);
+    tasks.claimTask(foundation.id, agent.id);
+    tasks.completeTask(foundation.id, agent.id);
+    assert.equal(tasks.claimTask(followUp.id, agent.id).status, 'doing');
+  } finally {
+    db.close();
+  }
+});
+
+test('stale agents are paused and their active tasks return to the queue', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const agent = tasks.registerAgent('session-stale', workspace.id, { name: 'stale' });
+    const task = tasks.createTask(workspace.id, { title: 'Recover me', fileScopes: ['src/**'] });
+    tasks.claimTask(task.id, agent.id);
+
+    const reclaimed = tasks.reclaimStaleAgents(new Date(Date.now() + 10 * 60_000));
+    assert.equal(reclaimed.agents, 1);
+    assert.equal(reclaimed.tasks, 1);
+    assert.equal(tasks.listAgents(workspace.id)[0].status, 'paused');
+    assert.equal(tasks.getTask(task.id)?.status, 'queued');
+    const pausedGate = tasks.mutationGate({
+      sessionId: agent.sessionId,
+      workspaceId: workspace.id,
+      paths: [resolve(root, 'src', 'recovered.ts')],
+    });
+    assert.equal(pausedGate.allowed, false);
+    assert.match(pausedGate.message, /DWB_AGENT_LEASE/);
+    assert.equal(tasks.heartbeatAgent(agent.sessionId, workspace.id).status, 'active');
+    assert.equal(tasks.claimTask(task.id, agent.id).status, 'doing');
+  } finally {
+    db.close();
+  }
+});

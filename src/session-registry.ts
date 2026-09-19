@@ -871,6 +871,8 @@ export class SessionRegistry {
     if (session.restarting) throw new Error('Worker is restarting; retry after it is ready');
     session.lastActivityAt = new Date().toISOString();
     session.inFlight += 1;
+    const logicalWorkspace = this.workspaceStore?.current(id);
+    if (logicalWorkspace) this.agentTasks?.touchAgent(id, logicalWorkspace.id);
     let lease: Awaited<ReturnType<LockManager['acquire']>> | null = null;
     let queueMs = 0;
     try {
