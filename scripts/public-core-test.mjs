@@ -259,6 +259,63 @@ try {
       file_scopes: ['src/frontend/**'],
     })
   ).structuredContent.task;
+  assert.deepEqual(
+    (await call(a, 'dwb_agent', { action: 'list' })).structuredContent.agents.map((agent) => ({
+      role: agent.role,
+      status: agent.status,
+      capabilities: agent.capabilities,
+    })),
+    [
+      { role: 'backend', status: 'active', capabilities: ['typescript', 'api'] },
+      { role: 'frontend', status: 'active', capabilities: ['typescript', 'ui'] },
+    ],
+  );
+  const delegatedTask = (
+    await call(a, 'dwb_task', {
+      action: 'delegate',
+      title: 'Delegated frontend lane',
+      description: 'Main agent delegated this lane to the frontend worker.',
+      file_scopes: ['src/delegated/**'],
+      required_role: 'frontend',
+      required_capabilities: ['ui'],
+    })
+  ).structuredContent;
+  assert.equal(delegatedTask.task.status, 'doing');
+  assert.equal(delegatedTask.dispatched, true);
+  await waitFor(() =>
+    notifications.b.some(
+      (data) => data?.type === 'agent_message' && data.message?.kind === 'task_assigned',
+    ),
+  );
+  const assignmentNotification = notifications.b.find(
+    (data) => data?.type === 'agent_message' && data.message?.kind === 'task_assigned',
+  );
+  assert.equal(assignmentNotification.message.targetTaskId, delegatedTask.task.id);
+  const assignmentAck = (
+    await call(b, 'dwb_agent', {
+      action: 'ack',
+      message_id: assignmentNotification.message.id,
+    })
+  ).structuredContent;
+  assert.equal(assignmentAck.message.status, 'acknowledged');
+  assert.equal(assignmentAck.response.kind, 'task_assignment_ack');
+  await waitFor(() =>
+    notifications.a.some(
+      (data) => data?.type === 'agent_message' && data.message?.kind === 'task_assignment_ack',
+    ),
+  );
+  assert.equal(
+    (
+      await call(b, 'dwb_task', {
+        action: 'complete',
+        task_id: delegatedTask.task.id,
+        changed_files: ['src/delegated/index.ts'],
+        summary: 'Delegated lane completed.',
+        test_result: { passed: true },
+      })
+    ).structuredContent.task.status,
+    'done',
+  );
   assert.equal(
     (await call(a, 'dwb_task', { action: 'claim', task_id: backendTask.id })).structuredContent.task
       .status,

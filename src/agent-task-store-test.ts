@@ -424,6 +424,11 @@ test('dependent agents exchange a persisted handoff and acknowledgement', async 
 
     assert.equal(tasks.dispatchQueuedTasks(), 1);
     assert.equal(tasks.getTask(followUp.id)?.assignedAgentId, reviewer.id);
+    const assignment = tasks
+      .listAgentMessages(workspace.id, reviewer.id)
+      .find((item) => item.kind === 'task_assigned');
+    assert.ok(assignment);
+    tasks.acknowledgeAgentMessage(assignment.id, reviewer.id);
     const created = tasks.syncHandoffMessages();
     assert.equal(created.length, 1);
     const message = created[0];
@@ -437,7 +442,12 @@ test('dependent agents exchange a persisted handoff and acknowledgement', async 
       handoff: tasks.getTask(source.id)?.handoff,
       result: { artifact: 'api-ready' },
     });
-    assert.deepEqual(tasks.listAgentMessages(workspace.id, reviewer.id), [message]);
+    assert.deepEqual(
+      tasks
+        .listAgentMessages(workspace.id, reviewer.id)
+        .filter((item) => item.kind === 'task_handoff'),
+      [message],
+    );
     assert.equal(tasks.syncHandoffMessages().length, 0);
 
     const acknowledgement = tasks.acknowledgeAgentMessage(message.id, reviewer.id);
@@ -449,6 +459,52 @@ test('dependent agents exchange a persisted handoff and acknowledgement', async 
       acknowledgement.response,
     ]);
     assert.deepEqual(tasks.listAgentMessages(workspace.id, reviewer.id), []);
+  } finally {
+    db.close();
+  }
+});
+
+test('dispatch sends an assignment to the worker and returns an acknowledgement to main', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const main = tasks.registerAgent('session-main', workspace.id, {
+      name: 'main-agent',
+      role: 'main',
+    } as any);
+    const worker = tasks.registerAgent('session-worker', workspace.id, {
+      name: 'backend-agent',
+      role: 'backend',
+      capabilities: ['typescript'],
+    } as any);
+    const task = tasks.createTask(workspace.id, {
+      title: 'Implement backend lane',
+      description: 'Implement the backend part of the user request.',
+      fileScopes: ['src/backend/**'],
+      requiredRole: 'backend',
+      requiredCapabilities: ['typescript'],
+    } as any);
+
+    const assigned = tasks.dispatchTask(task.id, main.id);
+
+    assert.equal(assigned.assignedAgentId, worker.id);
+    const assignment = tasks.listAgentMessages(workspace.id, worker.id)[0];
+    assert.equal(assignment.kind, 'task_assigned');
+    assert.equal(assignment.fromAgentId, main.id);
+    assert.equal(assignment.toAgentId, worker.id);
+    assert.equal(assignment.payload.taskId, task.id);
+    assert.equal((assignment.payload.task as { title: string }).title, 'Implement backend lane');
+
+    const acknowledgement = tasks.acknowledgeAgentMessage(assignment.id, worker.id);
+    assert.equal(acknowledgement.message.status, 'acknowledged');
+    assert.equal(acknowledgement.response?.kind, 'task_assignment_ack');
+    assert.equal(acknowledgement.response?.fromAgentId, worker.id);
+    assert.equal(acknowledgement.response?.toAgentId, main.id);
+    assert.deepEqual(tasks.listAgentMessages(workspace.id, main.id), [acknowledgement.response]);
   } finally {
     db.close();
   }

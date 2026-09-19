@@ -89,7 +89,8 @@ export const brokerTools = [
         name: { type: 'string', description: 'Human-readable agent name.' },
         role: {
           type: 'string',
-          description: 'Optional agent role such as backend, frontend, or tester.',
+          description:
+            'Optional agent role such as main, backend, frontend, or tester. Register the coordinating session as main.',
         },
         capabilities: {
           type: 'array',
@@ -115,7 +116,7 @@ export const brokerTools = [
         action: {
           type: 'string',
           description:
-            'Task operation: create, list, claim, dispatch, complete, handoff, release, block, cancel, reopen, history.',
+            'Task operation: create, delegate, list, claim, dispatch, complete, handoff, release, block, cancel, reopen, history. Use delegate from the main agent to create and dispatch a worker task in one call.',
         },
         title: { type: 'string' },
         description: { type: 'string' },

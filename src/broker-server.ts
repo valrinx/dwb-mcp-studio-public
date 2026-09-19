@@ -72,7 +72,8 @@ function deliverPendingAgentMessages(sessionId: string): void {
 
 function dispatchAndNotifyAgentMessages(): number {
   const dispatched = agentTasks.dispatchQueuedTasks();
-  deliverAgentMessages(agentTasks.syncHandoffMessages());
+  agentTasks.syncHandoffMessages();
+  deliverAgentMessages(agentTasks.listPendingAgentMessages());
   return dispatched;
 }
 
@@ -200,6 +201,35 @@ async function controlTool(
           priority: args.priority,
         }),
       });
+    if (action === 'delegate') {
+      const coordinator = agentTasks.agentForSession(sessionId, workspace.id);
+      if (!coordinator) throw new Error('Register the main agent before delegating tasks.');
+      const task = agentTasks.createTask(workspace.id, {
+        title: args.title,
+        description: args.description,
+        fileScopes: args.file_scopes,
+        dependsOn: args.depends_on,
+        requiredRole: args.required_role,
+        requiredCapabilities: args.required_capabilities,
+        priority: args.priority,
+      });
+      let dispatched = false;
+      let dispatchError: string | null = null;
+      try {
+        agentTasks.dispatchTask(task.id, coordinator.id);
+        dispatched = true;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!message.startsWith('DWB_TASK_NO_AGENT:')) throw error;
+        dispatchError = message;
+      }
+      dispatchAndNotifyAgentMessages();
+      return textResult({
+        task: agentTasks.getTask(task.id),
+        dispatched,
+        dispatchError,
+      });
+    }
     if (action === 'list') {
       const status = typeof args.status === 'string' ? args.status : undefined;
       if (status && !['queued', 'doing', 'done', 'blocked', 'cancelled'].includes(status))
@@ -212,7 +242,8 @@ async function controlTool(
     const taskId = typeof args.task_id === 'string' ? args.task_id.trim() : '';
     if (!taskId) throw new Error('task_id is required.');
     if (action === 'dispatch') {
-      const task = agentTasks.dispatchTask(taskId);
+      const requester = agentTasks.agentForSession(sessionId, workspace.id);
+      const task = agentTasks.dispatchTask(taskId, requester?.id ?? null);
       dispatchAndNotifyAgentMessages();
       return textResult({ task });
     }
@@ -257,7 +288,7 @@ async function controlTool(
         events: agentTasks.listTaskEvents(taskId),
       });
     throw new Error(
-      'dwb_task.action must be one of: create, list, claim, dispatch, complete, handoff, release, block, cancel, reopen, history.',
+      'dwb_task.action must be one of: create, delegate, list, claim, dispatch, complete, handoff, release, block, cancel, reopen, history.',
     );
   }
   if (name === 'dwb_resume_session') {

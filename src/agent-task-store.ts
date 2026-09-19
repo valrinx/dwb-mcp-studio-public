@@ -13,7 +13,8 @@ export type TaskHandoff = {
 };
 
 export type AgentMessageStatus = 'pending' | 'delivered' | 'acknowledged';
-export type AgentMessageKind = 'task_handoff' | 'handoff_ack';
+export type AgentMessageKind =
+  'task_assigned' | 'task_handoff' | 'task_assignment_ack' | 'handoff_ack';
 
 export type AgentMessageView = {
   id: string;
@@ -637,10 +638,12 @@ export class AgentTaskStore {
       const agent = this.requireAgent(agentId, String(row.workspace_id));
       if (String(row.to_agent_id) !== agent.id)
         throw new Error('Only the receiving agent can acknowledge this message.');
+      const responseKind: AgentMessageKind =
+        String(row.kind) === 'task_assigned' ? 'task_assignment_ack' : 'handoff_ack';
       const existingResponse = row.from_agent_id
         ? this.db.one<any>(
             'SELECT * FROM workspace_agent_messages WHERE source_task_id=? AND target_task_id=? AND to_agent_id=? AND kind=?',
-            [row.source_task_id, row.target_task_id, row.from_agent_id, 'handoff_ack'],
+            [row.source_task_id, row.target_task_id, row.from_agent_id, responseKind],
           )
         : null;
       if (String(row.status) !== 'acknowledged') {
@@ -672,7 +675,7 @@ export class AgentTaskStore {
           String(row.target_task_id),
           agent.id,
           String(row.from_agent_id),
-          'handoff_ack',
+          responseKind,
           JSON.stringify(payload),
           'pending',
           now,
@@ -716,11 +719,46 @@ export class AgentTaskStore {
     return rows.map((row) => this.taskView(row));
   }
 
-  dispatchTask(taskId: string): TaskView {
+  private createTaskAssignmentMessage(
+    task: TaskView,
+    fromAgentId: string | null,
+  ): AgentMessageView {
+    if (!task.assignedAgentId) throw new Error('Cannot notify an unassigned task.');
+    const existing = this.db.one<any>(
+      'SELECT * FROM workspace_agent_messages WHERE source_task_id=? AND target_task_id=? AND to_agent_id=? AND kind=?',
+      [task.id, task.id, task.assignedAgentId, 'task_assigned'],
+    );
+    if (existing) return this.messageView(existing);
+    const id = `msg_${randomUUID().slice(0, 8)}`;
+    const now = new Date().toISOString();
+    this.db.run(
+      'INSERT INTO workspace_agent_messages(id,workspace_id,source_task_id,target_task_id,from_agent_id,to_agent_id,kind,payload_json,status,created_at,delivered_at,acknowledged_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+      [
+        id,
+        task.workspaceId,
+        task.id,
+        task.id,
+        fromAgentId,
+        task.assignedAgentId,
+        'task_assigned',
+        JSON.stringify({ taskId: task.id, task }),
+        'pending',
+        now,
+        null,
+        null,
+      ],
+    );
+    return this.messageView(this.messageRow(id));
+  }
+
+  dispatchTask(taskId: string, requesterAgentId?: string | null): TaskView {
     const row = this.taskRow(taskId);
     if (!row) throw new Error('Unknown task.');
     if (String(row.status) !== 'queued' || row.assigned_agent_id)
       throw new Error('Task is not available to dispatch.');
+    const requester = requesterAgentId
+      ? this.requireAgent(requesterAgentId, String(row.workspace_id))
+      : null;
     const requiredRole =
       row.required_role == null ? null : String(row.required_role).toLocaleLowerCase();
     const requiredCapabilities = parseJson<string[]>(row.required_capabilities_json, []).map(
@@ -732,6 +770,13 @@ export class AgentTaskStore {
     );
     for (const candidate of candidates) {
       const role = candidate.role == null ? '' : String(candidate.role).toLocaleLowerCase();
+      if (
+        candidate.id === requesterAgentId &&
+        requester &&
+        ['main', 'orchestrator', 'coordinator'].includes(role) &&
+        requiredRole !== role
+      )
+        continue;
       if (requiredRole && role !== requiredRole) continue;
       const capabilities = parseJson<string[]>(candidate.capabilities_json, []).map((item) =>
         item.toLocaleLowerCase(),
@@ -742,21 +787,24 @@ export class AgentTaskStore {
         [candidate.id],
       );
       if (busy) continue;
-      return this.claimTask(taskId, String(candidate.id));
+      const assigned = this.claimTask(taskId, String(candidate.id));
+      if (assigned.assignedAgentId !== requesterAgentId)
+        this.createTaskAssignmentMessage(assigned, requesterAgentId ?? null);
+      return assigned;
     }
     throw new Error(
       `DWB_TASK_NO_AGENT: no available active agent matches task role/capabilities for ${taskId}.`,
     );
   }
 
-  dispatchQueuedTasks(): number {
+  dispatchQueuedTasks(requesterAgentId?: string | null): number {
     const queued = this.db.query<any>(
       "SELECT id FROM workspace_tasks WHERE status='queued' AND (required_role IS NOT NULL OR required_capabilities_json <> '[]') ORDER BY priority DESC,created_at,id",
     );
     let dispatched = 0;
     for (const task of queued) {
       try {
-        this.dispatchTask(String(task.id));
+        this.dispatchTask(String(task.id), requesterAgentId);
         dispatched += 1;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -768,6 +816,14 @@ export class AgentTaskStore {
       }
     }
     return dispatched;
+  }
+
+  listPendingAgentMessages(): AgentMessageView[] {
+    return this.db
+      .query<any>(
+        "SELECT * FROM workspace_agent_messages WHERE status='pending' ORDER BY created_at,id",
+      )
+      .map((row) => this.messageView(row));
   }
 
   claimTask(taskId: string, agentId: string): TaskView {
