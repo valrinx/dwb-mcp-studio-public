@@ -11,6 +11,13 @@ $paths=Get-DwbExternalPaths
 Assert (-not (Get-DwbManagedTunnelState).Ready) 'Empty app must not discover another app tunnel.'
 Assert (-not (Get-DwbManagedWorkerState).Ready) 'Empty app must not discover another app worker.'
 $null=New-Item -ItemType Directory -Path $paths.Root -Force
+$null=New-Item -ItemType Directory -Path $paths.WorkerRoot -Force
+$sentinel=Join-Path $paths.WorkerRoot 'old-install.txt'
+[IO.File]::WriteAllText($sentinel,'preserve this backup')
+$backup=Backup-DwbInvalidWorker $paths.WorkerRoot
+Assert ($backup -and -not(Test-Path -LiteralPath $paths.WorkerRoot)) 'Invalid worker folder was not moved out of the install path.'
+Assert ((Test-Path -LiteralPath (Join-Path $backup 'old-install.txt'))) 'Invalid worker folder was not preserved in the backup.'
+Assert ((Split-Path -Leaf $backup) -match '^desktop-commander\.backup-[0-9]{8}-[0-9]{6}-[a-f0-9]{8}$') 'Worker backup name is not collision-resistant and recognizable.'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive=Join-Path $test 'fixture.zip'
 $zip=[IO.Compression.ZipFile]::Open($archive,'Create')

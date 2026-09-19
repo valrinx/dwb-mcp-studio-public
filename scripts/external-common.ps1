@@ -29,6 +29,18 @@ function Get-DwbManagedWorkerState {
   try { Assert-DwbExternalPath $paths.Worker; return Get-DwbWorkerState $paths.Worker }
   catch { return [pscustomobject]@{Ready=$false;Message=$_.Exception.Message;Entry=$paths.Worker} }
 }
+function Backup-DwbInvalidWorker([string]$WorkerRoot) {
+  $paths=Get-DwbExternalPaths
+  $expected=[IO.Path]::GetFullPath($paths.WorkerRoot)
+  $full=[IO.Path]::GetFullPath($WorkerRoot)
+  if ($full -ne $expected) { throw 'Only the managed Desktop Commander folder can be backed up.' }
+  if (-not (Test-Path -LiteralPath $full)) { return $null }
+  Assert-DwbExternalPath $full
+  $stamp=Get-Date -Format 'yyyyMMdd-HHmmss'
+  do { $backup=Join-Path $paths.Root ('desktop-commander.backup-'+$stamp+'-'+[Guid]::NewGuid().ToString('N').Substring(0,8)) } while (Test-Path -LiteralPath $backup)
+  Move-Item -LiteralPath $full -Destination $backup
+  return $backup
+}
 function Get-DwbManagedTunnelState {
   $paths=Get-DwbExternalPaths
   try {
@@ -79,7 +91,7 @@ function Install-DwbExternal {
     $machine=Get-DwbMachineState
     if (-not $machine.NodeReady -or -not $machine.NpmReady) { throw 'Install Node.js 22.16 or later with npm first.' }
     if (-not (Get-DwbManagedWorkerState).Ready) {
-      if (Test-Path -LiteralPath $paths.WorkerRoot) { throw 'Desktop Commander installation is incomplete or unsupported. Rename external/desktop-commander to keep a backup, then retry.' }
+      if (Test-Path -LiteralPath $paths.WorkerRoot) { Backup-DwbInvalidWorker $paths.WorkerRoot | Write-Output }
       $stage=Join-Path $paths.Root ('.install-worker-'+[Guid]::NewGuid().ToString('N'))
       Assert-DwbExternalPath $stage
       $null=New-Item -ItemType Directory -Path $stage
