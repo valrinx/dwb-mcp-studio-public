@@ -6,6 +6,12 @@ import { WorkspaceStore, pathWithin, type WorkspaceView } from './workspace-stor
 export type AgentStatus = 'active' | 'paused';
 export type TaskStatus = 'queued' | 'doing' | 'done' | 'blocked' | 'cancelled';
 
+export type TaskHandoff = {
+  summary: string;
+  changedFiles: string[];
+  testResult: unknown;
+};
+
 export type AgentView = {
   id: string;
   workspaceId: string;
@@ -32,6 +38,7 @@ export type TaskView = {
   fileScopes: string[];
   dependsOn: string[];
   result: unknown;
+  handoff: TaskHandoff | null;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -56,6 +63,11 @@ type TaskInput = {
   requiredRole?: unknown;
   requiredCapabilities?: unknown;
   priority?: unknown;
+};
+type TaskHandoffInput = {
+  summary?: unknown;
+  changedFiles?: unknown;
+  testResult?: unknown;
 };
 
 function text(value: unknown): string {
@@ -162,6 +174,7 @@ export class AgentTaskStore {
         file_scopes_json TEXT NOT NULL,
         depends_on_json TEXT NOT NULL,
         result_json TEXT,
+        handoff_json TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         completed_at TEXT
@@ -171,6 +184,7 @@ export class AgentTaskStore {
       'ALTER TABLE workspace_tasks ADD COLUMN required_role TEXT',
       "ALTER TABLE workspace_tasks ADD COLUMN required_capabilities_json TEXT NOT NULL DEFAULT '[]'",
       'ALTER TABLE workspace_tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE workspace_tasks ADD COLUMN handoff_json TEXT',
     ]) {
       try {
         this.db.run(column);
@@ -231,6 +245,7 @@ export class AgentTaskStore {
       fileScopes: parseJson<string[]>(row.file_scopes_json, []),
       dependsOn: parseJson<string[]>(row.depends_on_json, []),
       result: parseJson(row.result_json, null),
+      handoff: parseJson<TaskHandoff | null>(row.handoff_json, null),
       createdAt: String(row.created_at),
       updatedAt: String(row.updated_at),
       completedAt: row.completed_at == null ? null : String(row.completed_at),
@@ -252,6 +267,41 @@ export class AgentTaskStore {
         return normalized.replace(/\/$/, '');
       })
       .filter(Boolean);
+  }
+
+  private normalizeChangedFiles(workspace: WorkspaceView, value: unknown): string[] {
+    return list(value).map((raw) => {
+      const normalized = raw.replaceAll('\\', '/').replace(/^\.\//, '').replace(/\/+/g, '/');
+      if (
+        !normalized ||
+        normalized === '.' ||
+        isAbsolute(raw) ||
+        normalized.split('/').some((part) => part === '..') ||
+        /[*?]/.test(normalized)
+      )
+        throw new Error(
+          'Task changed files must stay inside the workspace and use relative paths without globs.',
+        );
+      const target = resolve(workspace.root, normalized.replaceAll('/', sep));
+      if (!pathWithin(workspace.root, target))
+        throw new Error('Task changed files must stay inside the workspace.');
+      return normalized.replace(/\/$/, '');
+    });
+  }
+
+  private normalizeHandoff(workspace: WorkspaceView, input?: TaskHandoffInput): TaskHandoff | null {
+    if (
+      !input ||
+      (input.summary === undefined &&
+        input.changedFiles === undefined &&
+        input.testResult === undefined)
+    )
+      return null;
+    return {
+      summary: text(input.summary),
+      changedFiles: this.normalizeChangedFiles(workspace, input.changedFiles),
+      testResult: input.testResult === undefined ? null : input.testResult,
+    };
   }
 
   private requireAgent(id: string, workspaceId: string): AgentView {
@@ -396,7 +446,7 @@ export class AgentTaskStore {
       const now = new Date().toISOString();
       const id = `task_${randomUUID().slice(0, 8)}`;
       this.db.run(
-        'INSERT INTO workspace_tasks(id,workspace_id,title,description,required_role,required_capabilities_json,priority,status,assigned_agent_id,file_scopes_json,depends_on_json,result_json,created_at,updated_at,completed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO workspace_tasks(id,workspace_id,title,description,required_role,required_capabilities_json,priority,status,assigned_agent_id,file_scopes_json,depends_on_json,result_json,handoff_json,created_at,updated_at,completed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         [
           id,
           workspaceId,
@@ -410,6 +460,7 @@ export class AgentTaskStore {
           JSON.stringify(fileScopes),
           JSON.stringify(dependsOn),
           null,
+          null,
           now,
           now,
           null,
@@ -422,6 +473,12 @@ export class AgentTaskStore {
   getTask(id: string): TaskView | null {
     const row = this.taskRow(id);
     return row ? this.taskView(row) : null;
+  }
+
+  getTaskHandoff(taskId: string): { task: TaskView; handoff: TaskHandoff | null } {
+    const task = this.getTask(taskId);
+    if (!task) throw new Error('Unknown task.');
+    return { task, handoff: task.handoff };
   }
 
   listTaskEvents(taskId: string): TaskEventView[] {
@@ -541,7 +598,12 @@ export class AgentTaskStore {
     });
   }
 
-  completeTask(taskId: string, agentId: string, result?: unknown): TaskView {
+  completeTask(
+    taskId: string,
+    agentId: string,
+    result?: unknown,
+    handoffInput?: TaskHandoffInput,
+  ): TaskView {
     return this.db.transaction(() => {
       const row = this.taskRow(taskId);
       if (!row) throw new Error('Unknown task.');
@@ -549,12 +611,33 @@ export class AgentTaskStore {
       if (String(row.assigned_agent_id) !== agentId)
         throw new Error('Only the assigned agent can complete this task.');
       if (String(row.status) !== 'doing') throw new Error('Only a doing task can be completed.');
+      const handoff = this.normalizeHandoff(this.workspace(String(row.workspace_id)), handoffInput);
+      const taskScopes = parseJson<string[]>(row.file_scopes_json, []);
+      if (handoff !== null && taskScopes.length) {
+        const outsideScopes = handoff.changedFiles.filter(
+          (file) => !taskScopes.some((scope) => scopeMatches(scope, file)),
+        );
+        if (outsideScopes.length)
+          throw new Error(
+            `Task handoff changed files must stay inside the task scopes (${taskScopes.join(', ')}): ${outsideScopes.join(', ')}`,
+          );
+      }
       const now = new Date().toISOString();
       this.db.run(
-        'UPDATE workspace_tasks SET status=?,result_json=?,updated_at=?,completed_at=? WHERE id=?',
-        ['done', result === undefined ? null : JSON.stringify(result), now, now, taskId],
+        'UPDATE workspace_tasks SET status=?,result_json=?,handoff_json=?,updated_at=?,completed_at=? WHERE id=?',
+        [
+          'done',
+          result === undefined ? null : JSON.stringify(result),
+          handoff === null ? null : JSON.stringify(handoff),
+          now,
+          now,
+          taskId,
+        ],
       );
-      this.taskEvent(row, 'doing', 'done', agentId, result === undefined ? {} : { result });
+      const details: Record<string, unknown> = {};
+      if (result !== undefined) details.result = result;
+      if (handoff !== null) details.handoff = handoff;
+      this.taskEvent(row, 'doing', 'done', agentId, details);
       return this.taskView(this.taskRow(taskId));
     });
   }
@@ -699,10 +782,14 @@ export class AgentTaskStore {
 
   dashboardSnapshot() {
     const agents = this.db
-      .query<any>('SELECT * FROM workspace_agents ORDER BY status DESC,updated_at DESC,created_at,id')
+      .query<any>(
+        'SELECT * FROM workspace_agents ORDER BY status DESC,updated_at DESC,created_at,id',
+      )
       .map((row) => this.agentView(row));
     const tasks = this.db
-      .query<any>('SELECT * FROM workspace_tasks ORDER BY priority DESC,updated_at DESC,created_at,id')
+      .query<any>(
+        'SELECT * FROM workspace_tasks ORDER BY priority DESC,updated_at DESC,created_at,id',
+      )
       .map((row) => this.taskView(row));
     return { summary: this.summary(), agents, tasks };
   }

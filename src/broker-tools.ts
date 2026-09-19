@@ -111,7 +111,7 @@ export const brokerTools = [
         action: {
           type: 'string',
           description:
-            'Task operation: create, list, claim, dispatch, complete, release, block, cancel, reopen, history.',
+            'Task operation: create, list, claim, dispatch, complete, handoff, release, block, cancel, reopen, history.',
         },
         title: { type: 'string' },
         description: { type: 'string' },
@@ -136,6 +136,13 @@ export const brokerTools = [
         task_id: { type: 'string' },
         reason: { type: 'string', description: 'Reason for blocking a task.' },
         result: { description: 'Optional JSON result saved when completing a task.' },
+        summary: { type: 'string', description: 'Completion summary for the next agent.' },
+        changed_files: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Workspace-relative files changed by the completing agent.',
+        },
+        test_result: { description: 'Optional JSON test result for the next agent.' },
         status: {
           type: 'string',
           description: 'Optional list filter: queued, doing, done, blocked, cancelled.',

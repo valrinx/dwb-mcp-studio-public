@@ -277,11 +277,29 @@ try {
     ).isError,
     true,
   );
-  assert.equal(
-    (await call(a, 'dwb_task', { action: 'complete', task_id: backendTask.id })).structuredContent
-      .task.status,
-    'done',
+  const backendCompletion = await call(a, 'dwb_task', {
+    action: 'complete',
+    task_id: backendTask.id,
+    result: { artifact: 'backend-ready' },
+    summary: 'Implemented the backend lane and added coverage.',
+    changed_files: ['src/backend/index.ts'],
+    test_result: { command: 'npm test -- backend', passed: true },
+  });
+  assert.equal(backendCompletion.structuredContent.task.status, 'done');
+  assert.deepEqual(backendCompletion.structuredContent.task.handoff, {
+    summary: 'Implemented the backend lane and added coverage.',
+    changedFiles: ['src/backend/index.ts'],
+    testResult: { command: 'npm test -- backend', passed: true },
+  });
+  const backendHandoff = await call(b, 'dwb_task', {
+    action: 'handoff',
+    task_id: backendTask.id,
+  });
+  assert.deepEqual(
+    backendHandoff.structuredContent.handoff,
+    backendCompletion.structuredContent.task.handoff,
   );
+  assert.equal(backendHandoff.structuredContent.task.result.artifact, 'backend-ready');
   assert.equal(
     (await call(b, 'dwb_task', { action: 'complete', task_id: frontendTask.id })).structuredContent
       .task.status,

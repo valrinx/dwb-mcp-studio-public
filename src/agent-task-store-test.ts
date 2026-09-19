@@ -313,3 +313,70 @@ test('dashboard snapshot exposes agents and tasks without changing their state',
     db.close();
   }
 });
+
+test('completed task exposes a validated handoff for the next agent', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const producer = tasks.registerAgent('session-producer', workspace.id, {
+      name: 'producer',
+      role: 'backend',
+    } as any);
+    tasks.registerAgent('session-consumer', workspace.id, {
+      name: 'consumer',
+      role: 'reviewer',
+    } as any);
+    const task = tasks.createTask(workspace.id, {
+      title: 'Implement API',
+      fileScopes: ['src/api/**'],
+    } as any);
+    tasks.claimTask(task.id, producer.id);
+
+    const completed = tasks.completeTask(
+      task.id,
+      producer.id,
+      { artifact: 'api-ready' },
+      {
+        summary: 'Implemented the API endpoint and validation.',
+        changedFiles: ['src/api/routes.ts', 'src/api/routes.test.ts'],
+        testResult: { command: 'npm test -- api', passed: true },
+      },
+    );
+
+    assert.deepEqual(completed.result, { artifact: 'api-ready' });
+    assert.deepEqual(completed.handoff, {
+      summary: 'Implemented the API endpoint and validation.',
+      changedFiles: ['src/api/routes.ts', 'src/api/routes.test.ts'],
+      testResult: { command: 'npm test -- api', passed: true },
+    });
+    assert.deepEqual(tasks.getTaskHandoff(task.id), {
+      task: completed,
+      handoff: completed.handoff,
+    });
+    const invalid = tasks.createTask(workspace.id, {
+      title: 'Reject outside changed file',
+      fileScopes: ['src/other/**'],
+    } as any);
+    tasks.claimTask(invalid.id, producer.id);
+    assert.throws(
+      () =>
+        tasks.completeTask(invalid.id, producer.id, undefined, {
+          changedFiles: ['src/unclaimed.txt'],
+        }),
+      /Task handoff changed files must stay inside the task scopes/,
+    );
+    assert.throws(
+      () =>
+        tasks.completeTask(invalid.id, producer.id, undefined, {
+          changedFiles: ['..\\outside.txt'],
+        }),
+      /Task changed files must stay inside the workspace/,
+    );
+  } finally {
+    db.close();
+  }
+});

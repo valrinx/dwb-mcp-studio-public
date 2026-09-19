@@ -158,7 +158,21 @@ async function controlTool(
     if (!agent) throw new Error('Register an agent before claiming or updating tasks.');
     if (action === 'claim') return textResult({ task: agentTasks.claimTask(taskId, agent.id) });
     if (action === 'complete')
-      return textResult({ task: agentTasks.completeTask(taskId, agent.id, args.result) });
+      return textResult({
+        task: agentTasks.completeTask(
+          taskId,
+          agent.id,
+          args.result,
+          [args.summary, args.changed_files, args.test_result].some((value) => value !== undefined)
+            ? {
+                summary: args.summary,
+                changedFiles: args.changed_files,
+                testResult: args.test_result,
+              }
+            : undefined,
+        ),
+      });
+    if (action === 'handoff') return textResult(agentTasks.getTaskHandoff(taskId));
     if (action === 'release') return textResult({ task: agentTasks.releaseTask(taskId, agent.id) });
     if (action === 'block')
       return textResult({
@@ -176,7 +190,7 @@ async function controlTool(
         events: agentTasks.listTaskEvents(taskId),
       });
     throw new Error(
-      'dwb_task.action must be one of: create, list, claim, dispatch, complete, release, block, cancel, reopen, history.',
+      'dwb_task.action must be one of: create, list, claim, dispatch, complete, handoff, release, block, cancel, reopen, history.',
     );
   }
   if (name === 'dwb_resume_session') {
