@@ -245,6 +245,22 @@ try {
     })
   ).structuredContent.agent;
   assert.equal(agentA.workspaceId, agentB.workspaceId);
+  const waitingForDirectMessage = call(b, 'dwb_agent', { action: 'wait', timeout_ms: 2000 });
+  const directMessage = (
+    await call(a, 'dwb_agent', {
+      action: 'send',
+      to_agent_id: agentB.id,
+      message: 'Please report your current progress.',
+    })
+  ).structuredContent.message;
+  assert.equal(directMessage.kind, 'agent_message');
+  assert.equal(directMessage.payload.text, 'Please report your current progress.');
+  const waitedDirectMessage = (await waitingForDirectMessage).structuredContent;
+  assert.ok(waitedDirectMessage.messages.some((message) => message.id === directMessage.id));
+  const directAcknowledgement = (
+    await call(b, 'dwb_agent', { action: 'ack', message_id: directMessage.id })
+  ).structuredContent;
+  assert.equal(directAcknowledgement.response.kind, 'agent_message_ack');
   const backendTask = (
     await call(a, 'dwb_task', {
       action: 'create',
@@ -270,6 +286,7 @@ try {
       { role: 'frontend', status: 'active', capabilities: ['typescript', 'ui'] },
     ],
   );
+  const waitingForAssignment = call(b, 'dwb_agent', { action: 'wait', timeout_ms: 2000 });
   const delegatedTask = (
     await call(a, 'dwb_task', {
       action: 'delegate',
@@ -282,6 +299,13 @@ try {
   ).structuredContent;
   assert.equal(delegatedTask.task.status, 'doing');
   assert.equal(delegatedTask.dispatched, true);
+  const waitedAssignment = (await waitingForAssignment).structuredContent;
+  assert.ok(
+    waitedAssignment.messages.some(
+      (message) =>
+        message.kind === 'task_assigned' && message.targetTaskId === delegatedTask.task.id,
+    ),
+  );
   await waitFor(() =>
     notifications.b.some(
       (data) => data?.type === 'agent_message' && data.message?.kind === 'task_assigned',

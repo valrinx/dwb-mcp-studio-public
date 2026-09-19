@@ -509,3 +509,39 @@ test('dispatch sends an assignment to the worker and returns an acknowledgement 
     db.close();
   }
 });
+
+test('agents can exchange durable direct messages and acknowledgements', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const main = tasks.registerAgent('session-direct-main', workspace.id, {
+      name: 'main-agent',
+      role: 'main',
+    } as any);
+    const worker = tasks.registerAgent('session-direct-worker', workspace.id, {
+      name: 'worker-agent',
+      role: 'backend',
+    } as any);
+
+    const message = tasks.sendAgentMessage(workspace.id, main.id, worker.id, {
+      text: 'Please report the current blocker.',
+    });
+    assert.equal(message.kind, 'agent_message');
+    assert.equal(message.fromAgentId, main.id);
+    assert.equal(message.toAgentId, worker.id);
+    assert.deepEqual(message.payload, { text: 'Please report the current blocker.' });
+
+    const received = tasks.listAgentMessages(workspace.id, worker.id);
+    assert.deepEqual(received, [message]);
+    const acknowledgement = tasks.acknowledgeAgentMessage(message.id, worker.id);
+    assert.equal(acknowledgement.response?.kind, 'agent_message_ack');
+    assert.equal(acknowledgement.response?.fromAgentId, worker.id);
+    assert.equal(acknowledgement.response?.toAgentId, main.id);
+  } finally {
+    db.close();
+  }
+});

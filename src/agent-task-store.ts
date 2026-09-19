@@ -14,7 +14,12 @@ export type TaskHandoff = {
 
 export type AgentMessageStatus = 'pending' | 'delivered' | 'acknowledged';
 export type AgentMessageKind =
-  'task_assigned' | 'task_handoff' | 'task_assignment_ack' | 'handoff_ack';
+  | 'task_assigned'
+  | 'task_handoff'
+  | 'agent_message'
+  | 'task_assignment_ack'
+  | 'handoff_ack'
+  | 'agent_message_ack';
 
 export type AgentMessageView = {
   id: string;
@@ -614,6 +619,40 @@ export class AgentTaskStore {
     return rows.map((row) => this.messageView(row));
   }
 
+  sendAgentMessage(
+    workspaceId: string,
+    fromAgentId: string,
+    toAgentId: string,
+    payload: Record<string, unknown>,
+  ): AgentMessageView {
+    this.workspace(workspaceId);
+    const sender = this.requireAgent(fromAgentId, workspaceId);
+    const recipient = this.agentById(toAgentId);
+    if (!recipient || recipient.workspaceId !== workspaceId)
+      throw new Error('Unknown recipient agent for this workspace.');
+    const id = `msg_${randomUUID().slice(0, 8)}`;
+    const now = new Date().toISOString();
+    const messageKey = `direct:${id}`;
+    this.db.run(
+      'INSERT INTO workspace_agent_messages(id,workspace_id,source_task_id,target_task_id,from_agent_id,to_agent_id,kind,payload_json,status,created_at,delivered_at,acknowledged_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+      [
+        id,
+        workspaceId,
+        messageKey,
+        messageKey,
+        sender.id,
+        recipient.id,
+        'agent_message',
+        JSON.stringify(payload),
+        'pending',
+        now,
+        null,
+        null,
+      ],
+    );
+    return this.messageView(this.messageRow(id));
+  }
+
   markAgentMessageDelivered(messageId: string): AgentMessageView {
     return this.db.transaction(() => {
       const row = this.messageRow(messageId);
@@ -639,7 +678,11 @@ export class AgentTaskStore {
       if (String(row.to_agent_id) !== agent.id)
         throw new Error('Only the receiving agent can acknowledge this message.');
       const responseKind: AgentMessageKind =
-        String(row.kind) === 'task_assigned' ? 'task_assignment_ack' : 'handoff_ack';
+        String(row.kind) === 'task_assigned'
+          ? 'task_assignment_ack'
+          : String(row.kind) === 'task_handoff'
+            ? 'handoff_ack'
+            : 'agent_message_ack';
       const existingResponse = row.from_agent_id
         ? this.db.one<any>(
             'SELECT * FROM workspace_agent_messages WHERE source_task_id=? AND target_task_id=? AND to_agent_id=? AND kind=?',

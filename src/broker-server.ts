@@ -15,6 +15,7 @@ import { SessionRegistry } from './session-registry.js';
 import { CoreStore } from './core-store.js';
 import { WorkspaceStore } from './workspace-store.js';
 import { AgentTaskStore, type AgentMessageView, type TaskStatus } from './agent-task-store.js';
+import { AgentWakeQueue } from './agent-wake.js';
 
 const endpoint = brokerEndpoint();
 const log = new EventLog();
@@ -22,6 +23,7 @@ let coreDb: CoreStore;
 let workspaceStore: WorkspaceStore;
 let agentTasks: AgentTaskStore;
 let registry: SessionRegistry;
+const agentWake = new AgentWakeQueue();
 const sockets = new Map<Socket, ConnectionContext>();
 let markReady!: () => void;
 const ready = new Promise<void>((resolve) => {
@@ -59,7 +61,10 @@ function deliverAgentMessages(messages: AgentMessageView[]): void {
       method: 'notifications/agent_message',
       params: { message },
     });
-    if (delivered) agentTasks.markAgentMessageDelivered(message.id);
+    if (delivered) {
+      agentTasks.markAgentMessageDelivered(message.id);
+      agentWake.notify(agent.id);
+    }
   }
 }
 
@@ -109,6 +114,7 @@ async function controlTool(
   name: string,
   args: Record<string, unknown>,
   requestId?: string,
+  lifetime?: RequestLifetime,
 ): Promise<unknown | typeof NOT_A_CONTROL_TOOL> {
   if (!ctx.sessionId) throw new Error('MCP session is not initialized');
   if (name === 'dwb_bridge_status') {
@@ -162,8 +168,11 @@ async function controlTool(
         deliverPendingAgentMessages(sessionId);
         return textResult({ agent });
       }
-      if (action === 'heartbeat')
-        return textResult({ agent: agentTasks.heartbeatAgent(sessionId, workspace.id) });
+      if (action === 'heartbeat') {
+        const agent = agentTasks.heartbeatAgent(sessionId, workspace.id);
+        dispatchAndNotifyAgentMessages();
+        return textResult({ agent });
+      }
       if (action === 'status')
         return textResult({ agent: agentTasks.agentForSession(sessionId, workspace.id) });
       if (action === 'list') return textResult({ agents: agentTasks.listAgents(workspace.id) });
@@ -177,15 +186,49 @@ async function controlTool(
           messages: agentTasks.listAgentMessages(workspace.id, agent.id),
         });
       }
+      if (action === 'wait') {
+        if (!lifetime) throw new Error('Agent wait is unavailable outside a tool request.');
+        const requestedTimeout = Number(args.timeout_ms ?? 30_000);
+        const timeoutMs = Number.isFinite(requestedTimeout)
+          ? Math.max(0, Math.min(Math.trunc(requestedTimeout), 120_000))
+          : 30_000;
+        dispatchAndNotifyAgentMessages();
+        let messages = agentTasks.listAgentMessages(workspace.id, agent.id);
+        let notified = false;
+        if (!messages.length && timeoutMs > 0) {
+          notified = await agentWake.wait(agent.id, timeoutMs, lifetime.signal);
+          dispatchAndNotifyAgentMessages();
+          messages = agentTasks.listAgentMessages(workspace.id, agent.id);
+        }
+        agentTasks.touchAgent(sessionId, workspace.id);
+        return textResult({
+          agent: agentTasks.agentForSession(sessionId, workspace.id),
+          messages,
+          notified,
+          timedOut: !messages.length && !notified,
+        });
+      }
+      if (action === 'send') {
+        const toAgentId = typeof args.to_agent_id === 'string' ? args.to_agent_id.trim() : '';
+        const message = typeof args.message === 'string' ? args.message.trim() : '';
+        if (!toAgentId) throw new Error('to_agent_id is required.');
+        if (!message) throw new Error('message is required.');
+        const directMessage = agentTasks.sendAgentMessage(workspace.id, agent.id, toAgentId, {
+          text: message,
+        });
+        deliverAgentMessages([directMessage]);
+        return textResult({ message: directMessage });
+      }
       if (action === 'ack') {
         const messageId = typeof args.message_id === 'string' ? args.message_id.trim() : '';
         if (!messageId) throw new Error('message_id is required.');
         const acknowledgement = agentTasks.acknowledgeAgentMessage(messageId, agent.id);
         if (acknowledgement.response) deliverAgentMessages([acknowledgement.response]);
+        dispatchAndNotifyAgentMessages();
         return textResult(acknowledgement);
       }
       throw new Error(
-        'dwb_agent.action must be one of: register, heartbeat, status, list, inbox, ack.',
+        'dwb_agent.action must be one of: register, heartbeat, status, list, inbox, wait, send, ack.',
       );
     }
     agentTasks.touchAgent(sessionId, workspace.id);
@@ -271,17 +314,30 @@ async function controlTool(
       return textResult({ task });
     }
     if (action === 'handoff') return textResult(agentTasks.getTaskHandoff(taskId));
-    if (action === 'release') return textResult({ task: agentTasks.releaseTask(taskId, agent.id) });
-    if (action === 'block')
-      return textResult({
-        task: agentTasks.blockTask(
-          taskId,
-          agent.id,
-          typeof args.reason === 'string' ? args.reason : '',
-        ),
-      });
-    if (action === 'cancel') return textResult({ task: agentTasks.cancelTask(taskId, agent.id) });
-    if (action === 'reopen') return textResult({ task: agentTasks.reopenTask(taskId, agent.id) });
+    if (action === 'release') {
+      const task = agentTasks.releaseTask(taskId, agent.id);
+      dispatchAndNotifyAgentMessages();
+      return textResult({ task });
+    }
+    if (action === 'block') {
+      const task = agentTasks.blockTask(
+        taskId,
+        agent.id,
+        typeof args.reason === 'string' ? args.reason : '',
+      );
+      dispatchAndNotifyAgentMessages();
+      return textResult({ task });
+    }
+    if (action === 'cancel') {
+      const task = agentTasks.cancelTask(taskId, agent.id);
+      dispatchAndNotifyAgentMessages();
+      return textResult({ task });
+    }
+    if (action === 'reopen') {
+      const task = agentTasks.reopenTask(taskId, agent.id);
+      dispatchAndNotifyAgentMessages();
+      return textResult({ task });
+    }
     if (action === 'history')
       return textResult({
         task: agentTasks.getTask(taskId),
@@ -382,7 +438,14 @@ async function handle(
     lifetime.check();
     const isControl = brokerTools.some((tool) => tool.name === params.name);
     if (isControl) lifetime.begin();
-    const controlled = await controlTool(ctx, sessionId, params.name, params.arguments, message.id);
+    const controlled = await controlTool(
+      ctx,
+      sessionId,
+      params.name,
+      params.arguments,
+      message.id,
+      lifetime,
+    );
     if (controlled !== NOT_A_CONTROL_TOOL) return controlled;
     return registry.callTool(sessionId, message.id, params, lifetime);
   }
