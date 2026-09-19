@@ -285,3 +285,31 @@ test('automatic dispatch assigns eligible queued tasks and leaves unmatched task
     db.close();
   }
 });
+
+test('dashboard snapshot exposes agents and tasks without changing their state', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const agent = tasks.registerAgent('session-dashboard', workspace.id, {
+      name: 'dashboard-agent',
+      role: 'reviewer',
+      capabilities: ['review'],
+    } as any);
+    const task = tasks.createTask(workspace.id, {
+      title: 'Dashboard task',
+      requiredRole: 'reviewer',
+    } as any);
+    const before = tasks.getTask(task.id);
+    const snapshot = tasks.dashboardSnapshot();
+
+    assert.equal(snapshot.agents[0].id, agent.id);
+    assert.equal(snapshot.tasks[0].id, task.id);
+    assert.equal(tasks.getTask(task.id)?.status, before?.status);
+  } finally {
+    db.close();
+  }
+});

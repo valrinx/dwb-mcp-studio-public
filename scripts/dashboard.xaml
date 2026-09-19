@@ -44,7 +44,7 @@
    </DockPanel>
   </Border>
   <Grid Grid.Column="1" Margin="28,25,28,20">
-   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="175"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="150"/><RowDefinition Height="Auto"/><RowDefinition Height="175"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
    <Grid Margin="0,0,0,22"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
     <StackPanel><TextBlock Text="ภาพรวมการทำงาน" FontSize="29" FontWeight="SemiBold"/><TextBlock x:Name="Updated" Text="กำลังอ่านสถานะ…" Foreground="#8BAABD" Margin="0,7,0,0"/></StackPanel>
     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><Button x:Name="Refresh" Content="รีเฟรช"/><Button x:Name="StopMcp" Content="Stop" Margin="9,0,0,0"/><Button x:Name="StartMcp" Content="Start MCP →" Background="#08B8D2" Foreground="#06252E" BorderBrush="#08B8D2" FontWeight="Bold" Margin="9,0,0,0"/></StackPanel>
@@ -68,14 +68,30 @@
     </DataGrid.Columns></DataGrid>
     <TextBlock x:Name="Empty" Text="ยังไม่มี session · เรียกเครื่องมือจากแชทเพื่อเริ่มงาน" Foreground="#89AABE" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"/>
    </Grid>
-   <Grid Grid.Row="4" Margin="0,18,0,10"><TextBlock Text="เหตุการณ์ล่าสุด" FontSize="17" FontWeight="SemiBold"/><TextBlock Text="เลือกแถวเพื่อดูรายละเอียดด้านล่าง" HorizontalAlignment="Right" Foreground="#8BAABD" FontSize="11" VerticalAlignment="Center"/></Grid>
-   <DataGrid Grid.Row="5" x:Name="Events"><DataGrid.Columns>
+   <Grid Grid.Row="4" Margin="0,18,0,10"><TextBlock Text="Agents และ Tasks" FontSize="17" FontWeight="SemiBold"/><TextBlock x:Name="AgentTaskCount" Text="—" HorizontalAlignment="Right" Foreground="#8BAABD" FontSize="11" VerticalAlignment="Center"/></Grid>
+   <Grid Grid.Row="5" Margin="0,0,0,10">
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+    <DataGrid x:Name="Agents" Margin="0,0,6,0"><DataGrid.Columns>
+     <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Agent" Binding="{Binding Name}" Width="*" MinWidth="110"/>
+     <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Role" Binding="{Binding Role}" Width="90"/>
+     <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="สถานะ" Binding="{Binding Status}" Width="80"/>
+     <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="งาน" Binding="{Binding TaskCount}" Width="55"/>
+    </DataGrid.Columns></DataGrid>
+    <DataGrid x:Name="Tasks" Grid.Column="1" Margin="6,0,0,0"><DataGrid.Columns>
+     <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Task" Binding="{Binding Title}" Width="*" MinWidth="130"/>
+     <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="สถานะ" Binding="{Binding Status}" Width="80"/>
+     <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Agent" Binding="{Binding Agent}" Width="90"/>
+     <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Priority" Binding="{Binding Priority}" Width="60"/>
+    </DataGrid.Columns></DataGrid>
+   </Grid>
+   <Grid Grid.Row="6" Margin="0,8,0,10"><TextBlock Text="เหตุการณ์ล่าสุด" FontSize="17" FontWeight="SemiBold"/><TextBlock Text="เลือกแถวเพื่อดูรายละเอียดด้านล่าง" HorizontalAlignment="Right" Foreground="#8BAABD" FontSize="11" VerticalAlignment="Center"/></Grid>
+   <DataGrid Grid.Row="7" x:Name="Events"><DataGrid.Columns>
     <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="เวลา" Binding="{Binding Time}" Width="85"/>
     <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="ผล" Binding="{Binding Status}" Width="65"/>
     <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="เหตุการณ์ / เครื่องมือ" Binding="{Binding Event}" Width="*"/>
     <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="รายละเอียด" Binding="{Binding Detail}" Width="2*"/>
    </DataGrid.Columns></DataGrid>
-   <StackPanel Grid.Row="6" Margin="0,12,0,0"><TextBox x:Name="Detail" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Background="Transparent" BorderThickness="0" Text="เลือก session เพื่อดูโฟลเดอร์เต็ม หรือเลือกเหตุการณ์เพื่อดูข้อผิดพลาด" FontSize="12" Foreground="#9AB9CA" MaxHeight="60"/><TextBlock x:Name="ActionStatus" Text="Dashboard อ่านสถานะโดยไม่เปิด worker เพิ่ม · Stop หยุด tunnel ส่วนงานใน broker อาจยังทำงานต่อ" FontSize="11" Foreground="#6F96AC" Margin="0,8,0,0"/></StackPanel>
+   <StackPanel Grid.Row="8" Margin="0,12,0,0"><TextBox x:Name="Detail" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Background="Transparent" BorderThickness="0" Text="เลือก session เพื่อดูโฟลเดอร์เต็ม หรือเลือกเหตุการณ์เพื่อดูข้อผิดพลาด" FontSize="12" Foreground="#9AB9CA" MaxHeight="60"/><TextBlock x:Name="ActionStatus" Text="Dashboard อ่านสถานะโดยไม่เปิด worker เพิ่ม · Stop หยุด tunnel ส่วนงานใน broker อาจยังทำงานต่อ" FontSize="11" Foreground="#6F96AC" Margin="0,8,0,0"/></StackPanel>
   </Grid>
  </Grid>
 </Window>

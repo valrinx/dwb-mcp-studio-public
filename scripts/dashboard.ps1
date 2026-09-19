@@ -37,6 +37,22 @@ function Apply-Snapshot($Data){
   (Find 'Queue').Text=if($running){[string]$Data.broker.queueDepth}else{'—'}
   (Find 'QueueDetail').Text=if($running){'กำลังเรียก '+$Data.broker.inFlightCalls+' คำขอ'}else{'คำขอที่รอ worker'}
   (Find 'SessionCount').Text=if($running){'เชื่อมต่อ '+$Data.broker.attachedSessions+' · พักไว้ '+$Data.broker.detachedSessions}else{'ไม่มีข้อมูลสด'}
+  $agentSnapshot=$Data.agentTasks
+  $agentRows=@($agentSnapshot.agents)
+  $taskRows=@($agentSnapshot.tasks)
+  $taskCountByAgent=@{}
+  foreach($task in $taskRows){if($task.assignedAgentId){$key=[string]$task.assignedAgentId;if(-not $taskCountByAgent.ContainsKey($key)){$taskCountByAgent[$key]=0};$taskCountByAgent[$key]++}}
+  $agentNames=@{}
+  (Find 'Agents').ItemsSource=@(foreach($agent in $agentRows){
+    $key=[string]$agent.id;$agentNames[$key]=[string]$agent.name
+    [pscustomobject]@{Name=$agent.name;Role=$(if($agent.role){$agent.role}else{'—'});Status=$(if($agent.status -eq 'active'){'พร้อม'}else{'พัก'});TaskCount=$(if($taskCountByAgent.ContainsKey($key)){$taskCountByAgent[$key]}else{0});FullDetail=($agent.name+' · '+$agent.sessionId+'`ncapabilities: '+(($agent.capabilities -join ', '))+' · ล่าสุด '+(Local-Time $agent.lastSeenAt))}
+  })
+  (Find 'Tasks').ItemsSource=@(foreach($task in $taskRows){
+    $assigned=$(if($task.assignedAgentId -and $agentNames.ContainsKey([string]$task.assignedAgentId)){$agentNames[[string]$task.assignedAgentId]}else{'—'})
+    [pscustomobject]@{Title=$task.title;Status=$task.status;Agent=$assigned;Priority=$task.priority;FullDetail=($task.id+'`n'+$task.description+' · scope: '+(($task.fileScopes -join ', ')))}
+  })
+  $summary=$agentSnapshot.summary
+  (Find 'AgentTaskCount').Text=if($running -and $summary){'agents '+$summary.activeAgents+'/'+$summary.agents+' · queued '+$summary.queuedTasks+' · doing '+$summary.doingTasks+' · done '+$summary.doneTasks}else{'ไม่มีข้อมูลสด'}
   $rows=@(foreach($session in $Data.sessions){
     $label=if($session.workspaceName){$session.workspaceName}else{Split-Path -Leaf $session.workingDirectory}
     $state=if($session.queued){'รอ worker'}elseif($session.inFlight -gt 0){'กำลังทำงาน'}elseif($session.state -eq 'detached'){'พัก session'}elseif($session.ready){'พร้อมรับงาน'}else{'รอเรียกใช้'}
@@ -107,6 +123,8 @@ function Finish-Probe{
 })
 (Find 'StopMcp').Add_Click({try{Stop-DwbTunnel;(Find 'ActionStatus').Text='หยุด tunnel แล้ว · Broker และงานที่เริ่มไว้ในเครื่องอาจยังทำงานต่อ';Begin-Probe}catch{(Find 'ActionStatus').Text=$_.Exception.Message}})
 (Find 'Sessions').Add_SelectionChanged({$selected=(Find 'Sessions').SelectedItem;if($selected){(Find 'Detail').Text=$selected.FullDetail}})
+(Find 'Agents').Add_SelectionChanged({$selected=(Find 'Agents').SelectedItem;if($selected){(Find 'Detail').Text=$selected.FullDetail}})
+(Find 'Tasks').Add_SelectionChanged({$selected=(Find 'Tasks').SelectedItem;if($selected){(Find 'Detail').Text=$selected.FullDetail}})
 (Find 'Events').Add_SelectionChanged({$selected=(Find 'Events').SelectedItem;if($selected){(Find 'Detail').Text=$selected.Time+' · '+$selected.Event+"`n"+$selected.Detail}})
 $timer=New-Object Windows.Threading.DispatcherTimer
 $timer.Interval=[TimeSpan]::FromMilliseconds(200)

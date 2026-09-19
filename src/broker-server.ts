@@ -240,7 +240,7 @@ async function handle(
     const sessions = registry.listSessions();
     return {
       broker: registry.status,
-      agentTasks: agentTasks.summary(),
+      agentTasks: agentTasks.dashboardSnapshot(),
       totalSessions: sessions.length,
       sessions: sessions.slice(0, 200).map((session) => ({
         sessionId: session.sessionId,

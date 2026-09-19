@@ -697,6 +697,16 @@ export class AgentTaskStore {
     };
   }
 
+  dashboardSnapshot() {
+    const agents = this.db
+      .query<any>('SELECT * FROM workspace_agents ORDER BY status DESC,updated_at DESC,created_at,id')
+      .map((row) => this.agentView(row));
+    const tasks = this.db
+      .query<any>('SELECT * FROM workspace_tasks ORDER BY priority DESC,updated_at DESC,created_at,id')
+      .map((row) => this.taskView(row));
+    return { summary: this.summary(), agents, tasks };
+  }
+
   summary(workspaceId?: string) {
     const agents = workspaceId
       ? this.listAgents(workspaceId)

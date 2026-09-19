@@ -9,6 +9,7 @@
 - **Workers:** จำนวนที่เปิด / จำนวนสูงสุด พร้อมจำนวนที่กำลังเปิดหรือปิด
 - **คิว:** จำนวนคำขอรอ worker และคำขอที่กำลังเรียกใช้งาน
 - **Sessions:** workspace, worker PID, สถานะ, คิวและเวลาล่าสุด เลือกแถวเพื่อดู session ID และ working directory เต็ม
+- **Agents และ Tasks:** แสดง agent ที่ลงทะเบียน, role/capability, สถานะ lease, task ที่กำลังทำ, queue/done count และ priority ของ task โดยอ่านจาก broker snapshot เดียวกัน
 - **เหตุการณ์:** เหตุการณ์ core และคำเตือน/ข้อผิดพลาดจาก log ของ DWB tunnel เลือกแถวแล้วคัดลอกรายละเอียดจากช่องด้านล่างได้
 
 สถานะรีเฟรชทุก 3 วินาทีผ่าน named pipe ในเครื่อง โดยไม่ attach session, เปิด worker หรืออัปเดตเวลาใช้งานของ session จึงไม่ขัดกับการคืน worker ที่ว่าง ไม่เปิด HTTP dashboard หรือพอร์ตสาธารณะเพิ่ม
