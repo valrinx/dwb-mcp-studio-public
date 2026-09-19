@@ -219,6 +219,31 @@ test('stale agents are paused and their active tasks return to the queue', async
   }
 });
 
+test('pauses an autonomous worker and returns its unfinished task to the queue', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const agent = tasks.registerAgent('session-autonomous', workspace.id, {
+      name: 'Auto Planner',
+      role: 'planner',
+      capabilities: ['analysis'],
+    } as any);
+    const task = tasks.createTask(workspace.id, { title: 'Recover autonomous work' });
+    tasks.claimTask(task.id, agent.id);
+
+    assert.deepEqual(tasks.pauseAgent(agent.id, 'autonomous_worker_exit'), { agents: 1, tasks: 1 });
+    assert.equal(tasks.listAgents(workspace.id)[0].status, 'paused');
+    assert.equal(tasks.getTask(task.id)?.status, 'queued');
+    assert.equal(tasks.getTask(task.id)?.assignedAgentId, null);
+  } finally {
+    db.close();
+  }
+});
+
 test('connected paused agents are woken before queued work is dispatched', async () => {
   const root = resolve('logs', `agent-tasks-${randomUUID()}`);
   await mkdir(root, { recursive: true });

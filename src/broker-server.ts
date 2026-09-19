@@ -16,13 +16,17 @@ import { CoreStore } from './core-store.js';
 import { WorkspaceStore } from './workspace-store.js';
 import { AgentTaskStore, type AgentMessageView, type TaskStatus } from './agent-task-store.js';
 import { AgentWakeQueue } from './agent-wake.js';
+import { AutonomousAgentSupervisor } from './autonomous-agent-runner.js';
+import { applySavedBrokerConfig } from './broker-config.js';
 
+applySavedBrokerConfig();
 const endpoint = brokerEndpoint();
 const log = new EventLog();
 let coreDb: CoreStore;
 let workspaceStore: WorkspaceStore;
 let agentTasks: AgentTaskStore;
 let registry: SessionRegistry;
+let autonomousAgents: AutonomousAgentSupervisor | null = null;
 const agentWake = new AgentWakeQueue();
 const sockets = new Map<Socket, ConnectionContext>();
 let markReady!: () => void;
@@ -88,6 +92,7 @@ function dispatchAndNotifyAgentMessages(): number {
   const dispatched = agentTasks.dispatchQueuedTasks();
   agentTasks.syncHandoffMessages();
   deliverAgentMessages(agentTasks.listPendingAgentMessages());
+  autonomousAgents?.reconcile();
   return dispatched;
 }
 
@@ -140,7 +145,11 @@ async function controlTool(
     });
   }
   if (name === 'dwb_broker_status')
-    return textResult({ ...registry.status, agentTasks: agentTasks.summary() });
+    return textResult({
+      ...registry.status,
+      agentTasks: agentTasks.summary(),
+      autonomousAgents: autonomousAgents?.status() ?? { enabled: false, running: 0, queuedLaunches: 0 },
+    });
   if (name === 'dwb_session_status') {
     const logicalWorkspace = workspaceStore.current(sessionId);
     return textResult({
@@ -606,6 +615,7 @@ async function shutdown(code: number): Promise<void> {
   shuttingDown = true;
   if (heartbeat) clearInterval(heartbeat);
   heartbeat = null;
+  autonomousAgents?.stopAll();
   const closed = new Promise<void>((resolve) => server.close(() => resolve()));
   for (const socket of sockets.keys()) socket.destroy();
   await registry?.shutdown().catch(() => {});
@@ -644,6 +654,21 @@ async function main(): Promise<void> {
   workspaceStore = new WorkspaceStore(coreDb);
   agentTasks = new AgentTaskStore(coreDb, workspaceStore);
   registry = new SessionRegistry(log, workspaceStore, undefined, agentTasks);
+  autonomousAgents = new AutonomousAgentSupervisor(agentTasks, workspaceStore, {
+    onEvent: (event) => {
+      void log.write({
+        type: `autonomous_agent_${event.type}`,
+        details: {
+          key: event.key,
+          name: event.profile.name,
+          role: event.profile.role,
+          workspace: event.profile.workspaceRoot,
+          ...(event.code === undefined ? {} : { code: event.code }),
+          ...(event.error === undefined ? {} : { error: event.error }),
+        },
+      });
+    },
+  });
   await registry.restore();
   markReady();
   await log.write({
@@ -655,6 +680,7 @@ async function main(): Promise<void> {
       sessionList: registry.listSessions(),
     },
   });
+  dispatchAndNotifyAgentMessages();
   heartbeat = setInterval(() => {
     void (async () => {
       await registry.reclaimIdleWorkers();

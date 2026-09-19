@@ -1156,6 +1156,31 @@ export class AgentTaskStore {
     });
   }
 
+  pauseAgent(agentId: string, reason = 'agent_paused'): { agents: number; tasks: number } {
+    return this.db.transaction(() => {
+      const agent = this.db.one<any>('SELECT * FROM workspace_agents WHERE id=?', [agentId]);
+      if (!agent || String(agent.status) === 'paused') return { agents: 0, tasks: 0 };
+      const stampedAt = new Date().toISOString();
+      this.db.run('UPDATE workspace_agents SET status=?,updated_at=? WHERE id=?', [
+        'paused',
+        stampedAt,
+        agentId,
+      ]);
+      const assigned = this.db.query<any>(
+        "SELECT * FROM workspace_tasks WHERE assigned_agent_id=? AND status='doing'",
+        [agentId],
+      );
+      for (const task of assigned) {
+        this.db.run(
+          'UPDATE workspace_tasks SET status=?,assigned_agent_id=NULL,updated_at=? WHERE id=?',
+          ['queued', stampedAt, task.id],
+        );
+        this.taskEvent(task, 'doing', 'queued', null, { reason, agentId });
+      }
+      return { agents: 1, tasks: assigned.length };
+    });
+  }
+
   mutationGate(input: { sessionId: string; workspaceId: string; paths: string[] }) {
     const agent = this.agentForSession(input.sessionId, input.workspaceId);
     if (!agent) return { allowed: true, message: '' };

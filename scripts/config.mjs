@@ -38,12 +38,15 @@ export async function validateConfig(config) {
     workspace: resolve(workspace),
     workerCap,
     basePolicy,
+    autonomousAgents:
+      process.env.DWB_AUTONOMOUS_AGENTS === 'true' || config.autonomousAgents === true,
     version: worker.version,
   };
 }
 export function applyConfig(config) {
   process.env.DWB_WORKER_ENTRY = config.workerEntry;
   process.env.DWB_WORKER_CAP = String(config.workerCap);
+  process.env.DWB_AUTONOMOUS_AGENTS = config.autonomousAgents ? 'true' : 'false';
   if (config.basePolicy) process.env.DWB_BASE_DC_CONFIG = config.basePolicy;
   process.chdir(config.workspace);
 }

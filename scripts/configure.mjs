@@ -10,6 +10,7 @@ const { values } = parseArgs({
     'worker-entry': { type: 'string' },
     workspace: { type: 'string' },
     'worker-cap': { type: 'string' },
+    'autonomous-agents': { type: 'boolean' },
   },
 });
 const previous = await readConfig();
@@ -27,7 +28,9 @@ try {
     (await ask('Desktop Commander dist/index.js path', previous.workerEntry));
   const workspace = values.workspace || (await ask('Workspace directory', previous.workspace));
   const workerCap = Number(values['worker-cap'] || previous.workerCap || 4);
-  const config = await validateConfig({ workerEntry, workspace, workerCap });
+  const autonomousAgents =
+    values['autonomous-agents'] ?? previous.autonomousAgents ?? false;
+  const config = await validateConfig({ workerEntry, workspace, workerCap, autonomousAgents });
   const root = dirname(configPath());
   await mkdir(root, { recursive: true });
   // A newly configured install starts with an explicit filesystem policy.
@@ -51,6 +54,7 @@ try {
         workerEntry: config.workerEntry,
         workspace: config.workspace,
         workerCap: config.workerCap,
+        autonomousAgents: config.autonomousAgents,
         basePolicy,
       },
       null,

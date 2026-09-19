@@ -38,7 +38,7 @@ DWB รองรับการให้ MCP session หลายตัวทำ
 }
 ```
 
-`delegate` จะสร้าง task, หา worker ที่ตรง role/capability, claim งาน และส่ง `task_assigned` ให้ worker ทันที ถ้ายังไม่มี worker ที่พร้อม งานจะค้างเป็น `queued` แล้ว broker จะลอง dispatch ใหม่เมื่อ worker เชื่อมต่อหรือเมื่อมีเหตุการณ์ที่ทำให้งานพร้อม เช่น release, reopen หรือ dependency เสร็จ ไม่ต้องรอ heartbeat รอบถัดไป
+`delegate` จะสร้าง task, หา worker ที่ตรง role/capability, claim งาน และส่ง `task_assigned` ให้ worker ทันที ถ้ายังไม่มี worker ที่พร้อม งานจะค้างเป็น `queued` แล้ว broker จะลอง dispatch ใหม่เมื่อ worker เชื่อมต่อหรือเมื่อมีเหตุการณ์ที่ทำให้งานพร้อม เช่น release, reopen หรือ dependency เสร็จ ไม่ต้องรอ heartbeat รอบถัดไป หากเปิด `autonomousAgents` ไว้ broker จะเปิด Local Codex worker ให้ role ที่ต้องการเอง แล้ว worker จะ bind workspace, register และรอรับงานโดยไม่ต้องเปิดแชท worker แยก
 
 4. ถ้าต้องการแยกขั้นตอนเอง สามารถสร้าง task พร้อมขอบเขตไฟล์แบบ relative path หรือ glob:
 
@@ -120,7 +120,17 @@ broker จะส่ง `handoff_ack` กลับไปยัง Agent ต้น
 worker A complete → worker B task_handoff → worker B complete → main agent
 ```
 
-การส่งข้อความ, notification และการปลุก `wait` เป็นอัตโนมัติที่ broker เมื่อ MCP session ยังเชื่อมอยู่ broker จะคืน agent ที่ถูกพักกลับเป็น `active` ก่อน dispatch งานค้างให้เอง และ DWB client จะ reconnect broker เบื้องหลังพร้อม session เดิมเมื่อ broker ถูก restart โดยไม่ต้องรอ tool call ใหม่ หาก host สร้าง MCP session ใหม่แต่ส่ง logical chat context เดิมกลับมา การ bind workspace จะ rebind agent เดิมให้เองด้วย จึงไม่ต้อง register ซ้ำ แต่การให้โมเดล worker เริ่มเรียกเครื่องมือเองหลังได้รับ notification ยังต้องอาศัย MCP host ที่รองรับ server notifications หรือให้ worker เรียก `wait` ค้างไว้ หาก host ปิด session หลังจบคำตอบ DWB ไม่สามารถสร้าง turn ใหม่ใน host ให้เองได้ ต้องให้ host reconnect หรือใช้ worker loop ที่คง session ไว้
+การส่งข้อความ, notification และการปลุก `wait` เป็นอัตโนมัติที่ broker เมื่อ MCP session ยังเชื่อมอยู่ broker จะคืน agent ที่ถูกพักกลับเป็น `active` ก่อน dispatch งานค้างให้เอง และ DWB client จะ reconnect broker เบื้องหลังพร้อม session เดิมเมื่อ broker ถูก restart โดยไม่ต้องรอ tool call ใหม่ หาก host สร้าง MCP session ใหม่แต่ส่ง logical chat context เดิมกลับมา การ bind workspace จะ rebind agent เดิมให้เองด้วย จึงไม่ต้อง register ซ้ำ หาก host ปิด session หลังจบคำตอบและต้องการให้ทำงานต่อโดยไม่เปิดแชทใหม่ ให้เปิด autonomous mode; broker จะใช้ `codex exec` เป็น worker process แยกและเชื่อม DWB MCP โดยตรง
+
+เปิด autonomous mode ใน `%LOCALAPPDATA%\DWB-MCP-Studio\config.json`:
+
+```json
+{
+  "autonomousAgents": true
+}
+```
+
+หรือใช้ `node scripts/configure.mjs --autonomous-agents` จากโฟลเดอร์โปรเจกต์ จากนั้น restart MCP/broker. ระบบใช้ `codex` จาก PATH หรือค่าจาก `DWB_CODEX_EXECUTABLE`; ค่า sandbox เริ่มต้นคือ `workspace-write` และใช้ `--approve-for-me` เพื่อให้ worker เรียก MCP ต่อเนื่องได้โดยไม่รอคนกดยืนยัน เปลี่ยนเป็น `read-only` หรือ `danger-full-access` ได้ด้วย `DWB_AUTONOMOUS_SANDBOX` ตามความเสี่ยงของงาน (งานที่ต้องเรียก tool ควรใช้ `workspace-write`). broker จะอ่าน `workerEntry`, `workerCap`, policy และ `autonomousAgents` จาก config เองแม้ถูกเปิดโดย client ตรง ๆ ปิดได้ด้วย `autonomousAgents: false` หรือ `DWB_AUTONOMOUS_AGENTS=false`
 
 Agent ที่ยังทำงานอยู่ควรเรียก `dwb_agent` ด้วย `action=heartbeat` เป็นระยะ ระบบจะต่ออายุ lease ให้อัตโนมัติระหว่างการเรียกเครื่องมือของ agent ด้วย
 
