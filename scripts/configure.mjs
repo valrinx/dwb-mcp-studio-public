@@ -28,8 +28,7 @@ try {
     (await ask('Desktop Commander dist/index.js path', previous.workerEntry));
   const workspace = values.workspace || (await ask('Workspace directory', previous.workspace));
   const workerCap = Number(values['worker-cap'] || previous.workerCap || 4);
-  const autonomousAgents =
-    values['autonomous-agents'] ?? previous.autonomousAgents ?? false;
+  const autonomousAgents = values['autonomous-agents'] ?? previous.autonomousAgents ?? false;
   const config = await validateConfig({ workerEntry, workspace, workerCap, autonomousAgents });
   const root = dirname(configPath());
   await mkdir(root, { recursive: true });
@@ -83,7 +82,7 @@ try {
     ) + '\n',
   );
   console.log(
-    `Saved configuration: ${configPath()}\nMCP client configuration: ${clientConfig}\nRun node scripts/doctor.mjs to check the setup.\nConnect your MCP client to the generated command. Use DWB MCP Studio.exe to open the app.`,
+    `Saved configuration: ${configPath()}\nMCP client configuration: ${clientConfig}\nRun node scripts/doctor.mjs to check the setup.\nConnect one client with: node scripts/connect.mjs install --client <id>\nConnect detected clients with: node scripts/connect.mjs install --all\nUse DWB MCP Studio.exe to open the app.`,
   );
 } catch (error) {
   console.error(error.message);

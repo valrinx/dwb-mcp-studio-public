@@ -2,7 +2,22 @@
 
 ## Local MCP clients
 
-Run `DWB MCP Studio.exe` or `npm run configure`, then merge the generated `mcp-client.json` entry into your client's MCP configuration. The generated command uses the actual Node executable and this installation's `scripts/start.mjs`; paths containing spaces are separate JSON arguments.
+Run `DWB MCP Studio.exe` or `npm run configure`, then connect an AI client with the built-in connector installer. It merges only the `dwb-core` entry, creates a timestamped backup when a config already exists, and keeps unrelated MCP servers intact:
+
+```powershell
+# See supported adapters and whether their standard config path exists
+node scripts/connect.mjs list
+
+# Install one adapter
+node scripts/connect.mjs install --client claude
+
+# Install every supported adapter detected on this Windows account
+node scripts/connect.mjs install --all
+```
+
+The supported standard adapters are Claude Desktop, Cursor, Windsurf, GitHub Copilot CLI, VS Code workspace `.vscode/mcp.json`, and portable workspace `.mcp.json`. Use `--config <file>` for a client that accepts MCP but stores its configuration elsewhere, for example `node scripts/connect.mjs install --client vscode --config "D:\Profiles\my-mcp.json"`. The generated generic file remains available at `%LOCALAPPDATA%\DWB-MCP-Studio\mcp-client.json` for clients that provide their own import or custom `mcpServers` path. The generated command uses the actual Node executable and this installation's `scripts/start.mjs`; paths containing spaces are separate JSON arguments.
+
+After installation, restart or reload the AI client so it starts `dwb-core`. The installer does not write API keys or alter other server definitions.
 
 `DWB MCP Studio.exe` opens a Thai WPF setup window. It checks Node.js/npm, offers a workspace folder picker, downloads pinned Desktop Commander and tunnel-client into this installation's `external` folder, installs DWB libraries, saves configuration and runs Doctor. There are no worker/executable pickers. Existing compatible local dependencies are reused. See [external dependencies](EXTERNAL.md) for sources and validation. Setup diagnostics are saved under the user data directory's `logs/setup-*` folders.
 

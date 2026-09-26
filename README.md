@@ -154,7 +154,7 @@ ZIP ที่แจกยังมีเฉพาะ DWB ไม่มี third-p
 
 ยังต้องสร้าง tunnel บน OpenAI และเชื่อมกับ ChatGPT ตามระบบของ OpenAI ใช้ **Tunnel ID คนละตัวกับระบบเดิมที่กำลังเปิดอยู่** DWB สร้างโปรไฟล์แยกใน data directory และเลือกพอร์ตว่างอัตโนมัติ สถานะพร้อมเป็นผลจาก tunnel-client; ยืนยันการใช้งานครบเส้นทางด้วยการเรียกเครื่องมือจากแชท
 
-สำหรับ local MCP client ใช้ไฟล์ `%LOCALAPPDATA%\DWB-MCP-Studio\mcp-client.json` ที่ Setup สร้างให้ ดู [การเชื่อมต่อ](docs/CONFIGURATION.md) `node scripts/start.mjs` เป็น stdio server ให้ client เปิด ส่วน `DWB MCP Studio.exe` เป็นหน้าต่างสำหรับ Start/Stop OpenAI Tunnel
+สำหรับ local MCP client ใช้ไฟล์ `%LOCALAPPDATA%\DWB-MCP-Studio\mcp-client.json` ที่ Setup สร้างให้ หรือเชื่อมอัตโนมัติด้วย `node scripts/connect.mjs install --client <id>` / `node scripts/connect.mjs install --all` ดู [การเชื่อมต่อ](docs/CONFIGURATION.md) `node scripts/start.mjs` เป็น stdio server ให้ client เปิด ส่วน `DWB MCP Studio.exe` เป็นหน้าต่างสำหรับ Start/Stop OpenAI Tunnel
 
 เปิด `node scripts/doctor.mjs` เพื่อตรวจ config และสถานะ broker โดยไม่เปิด worker เพิ่ม สถานะ `stopped` เป็นปกติก่อน client เชื่อมต่อ
 

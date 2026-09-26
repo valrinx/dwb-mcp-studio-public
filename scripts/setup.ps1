@@ -48,6 +48,7 @@ $workspaceBrowse = Find 'WorkspaceBrowse'
 $workerHelp = Find 'WorkerHelp'
 $save = Find 'Save'
 $copy = Find 'Copy'
+$connectClients = Find 'ConnectClients'
 $showFile = Find 'ShowFile'
 $progress = Find 'Progress'
 $resultLabel = Find 'ResultLabel'
@@ -108,7 +109,7 @@ function Stop-Setup {
 function Set-Busy([bool]$Value) {
   foreach ($control in @((Find 'DashboardHome'),$workerInput,$workspaceInput,$increase,$decrease,$workerBrowse,$workspaceBrowse,$refresh,$workerHelp,$downloadNode)) { $control.IsEnabled = -not $Value }
   $progress.Visibility = if ($Value) { 'Visible' } else { 'Collapsed' }
-  if ($Value) { $save.Content = 'ยกเลิกการติดตั้ง'; $copy.IsEnabled = $false; $showFile.IsEnabled = $false }
+  if ($Value) { $save.Content = 'ยกเลิกการติดตั้ง'; $copy.IsEnabled = $false; $connectClients.IsEnabled = $false; $showFile.IsEnabled = $false }
   else { $save.Content = if($script:IsUpgrade){'อัปเดตและใช้การตั้งค่าเดิม  →'}else{'ติดตั้งและเตรียมใช้งาน  →'}; Set-Capacity $script:CapacityValue }
 }
 
@@ -166,6 +167,7 @@ $timer.Add_Tick({
     $resultLabel.Foreground = $Green
     $resultLabel.Text = if($script:IsUpgrade){'พร้อมใช้งาน · เปิด Dashboard แล้วกด Start MCP ด้วยการเชื่อมต่อที่บันทึกไว้ได้เลย'}else{'ตั้งค่าเครื่องเรียบร้อย · ขั้นต่อไปกรอก Tunnel ID และ API key แล้วกด Start MCP'}
     $copy.IsEnabled = $true
+    $connectClients.IsEnabled = $true
     $showFile.Content = 'เปิดไฟล์ ↗'
     $showFile.IsEnabled = $true
     $save.Content = 'บันทึกอีกครั้ง  →'
@@ -175,6 +177,7 @@ $timer.Add_Tick({
     if ($script:Cancelled) { $resultLabel.Text = 'ยกเลิกแล้ว กดบันทึกอีกครั้งเมื่อต้องการดำเนินการต่อ' }
     else { $resultLabel.Text = 'ตั้งค่ายังไม่สำเร็จ · เปิดบันทึกเพื่อดูสาเหตุ แล้วลองใหม่'; $resultLabel.ToolTip = $_.Exception.Message }
     $script:ClientConfig = $null
+    $connectClients.IsEnabled = $false
     $showFile.Content = 'ดูบันทึก ↗'
     $showFile.IsEnabled = $true
   }
@@ -203,6 +206,18 @@ $save.Add_Click({
 $copy.Add_Click({
   try { [Windows.Clipboard]::SetText([IO.File]::ReadAllText($script:ClientConfig)); $resultLabel.Text = 'คัดลอกแล้ว · นำไปเพิ่มใน MCP client หรือ tunnel ของคุณได้เลย' }
   catch { $resultLabel.Text = 'คัดลอกไม่ได้ ลองเปิดไฟล์แล้วคัดลอกด้วยตัวเอง'; $resultLabel.Foreground = $Orange }
+})
+$connectClients.Add_Click({
+  try {
+    $node = Get-DwbNode
+    if (-not $node) { throw 'ต้องมี Node.js 22.16 ขึ้นไปก่อนเชื่อมต่อ AI client' }
+    $arguments = @((Join-Path $PSScriptRoot 'connect.mjs'),'install','--all','--data-dir',(Get-DwbDataDirectory),'--dwb-config',(Get-DwbConfigPath))
+    if ($workspaceInput.Text) { $arguments += @('--workspace', $workspaceInput.Text.Trim().Trim('"')) }
+    $raw = Invoke-DwbNode $node ($arguments + @('--json')) (Split-Path -Parent $PSScriptRoot)
+    $connected = @($raw | ConvertFrom-Json).Count
+    $resultLabel.Foreground = $Green
+    $resultLabel.Text = "เชื่อมต่อ AI client แล้ว $connected ตัว · ปิด/เปิดหรือ reload client เพื่อเริ่ม dwb-core"
+  } catch { $resultLabel.Foreground = $Orange; $resultLabel.Text = 'เชื่อมต่อ AI client ยังไม่สำเร็จ · ' + $_.Exception.Message }
 })
 $showFile.Add_Click({
   if ($script:ClientConfig) { [Diagnostics.Process]::Start('explorer.exe', ('/select,"' + $script:ClientConfig + '"')) | Out-Null }
