@@ -2,7 +2,7 @@
 
 [MCP Server Manager: คู่มือใช้งาน](docs/MCP-SERVER-MANAGER-TH.md) · [แผนการพัฒนา](docs/MCP-MANAGER-PLAN-TH.md)
 
-Windows Beta · 0.1.0-beta.15
+Windows Beta · 0.1.0-beta.16
 
 ## ดาวน์โหลดและเริ่มใช้
 
@@ -24,9 +24,13 @@ Setup เตรียมโปรแกรมจาก source ให้เอง
 
 DWB รองรับ MCP session หลายตัวที่ bind workspace เดียวกัน พร้อม task board สำหรับแยกงานและจองขอบเขตไฟล์ แต่ละ agent ลงทะเบียนผ่าน `dwb_agent` แล้ว Main Agent ใช้ `dwb_task action=delegate` เพื่อส่งงานไปยัง agent ในแชทอื่นตาม role/capability หรือระบุ `to_agent_id` ตรง ๆ ได้ งานที่ถูกส่งจะมี notification `task_assigned` และ ack `task_assignment_ack`; เมื่อ complete agent สามารถส่ง summary, changed files, ผลทดสอบ และ result ให้ agent ถัดไปอ่านด้วย `dwb_task action=handoff` ได้ หากมี task ต่อเนื่องที่ถูก dispatch ให้ agent อื่น broker จะส่ง notification อัตโนมัติผ่าน `dwb_agent action=inbox` และ agent ปลายทางตอบรับด้วย `dwb_agent action=ack` งานที่ระบุ role/capability จะถูก dispatch ให้ agent ที่ตรงเงื่อนไขโดย broker การ claim task ที่มีขอบเขตไฟล์ทับกับ task ที่กำลังทำอยู่จะถูกปฏิเสธ และ agent จะถูกบล็อกเมื่อพยายามเขียนไฟล์นอก scope ของ task ตัวเอง ระบบมี heartbeat/lease สำหรับคืนงานเมื่อ agent หลุด; ถ้า session ยังเชื่อมอยู่ broker จะปลุก agent ที่ถูกพักและส่งงานค้างต่อให้เอง และ client จะ reconnect broker เบื้องหลังโดยใช้ session เดิม หากไม่มีแชท worker ที่เชื่อมอยู่และเปิด `autonomousAgents` broker จะเปิด Local Codex worker แบบ `--ephemeral` ตาม role ให้เอง ดูตัวอย่างเต็มใน [คู่มือ Multi-Agent](docs/MULTI-AGENT-TH.md)
 
+### ปรับปรุงใน beta.16
+
+- วาง public GitHub repository ใน **MCP Server Manager** เพื่อติดตั้ง Node MCP และเลือก executable ให้อัตโนมัติ; server ใหม่ปิดใช้งานไว้จนกว่าจะเปิดเอง ดู [คู่มือ](docs/MCP-SERVER-MANAGER-TH.md)
+
 ### ปรับปรุงใน beta.15
 
-- เพิ่ม **MCP Server Manager** สำหรับติดตั้งและจัดการ MCP server จาก catalog โดยเริ่มด้วย Filesystem server; แยกโฟลเดอร์ติดตั้งและตั้งค่าให้ปิดไว้จนกว่าจะเปิดใช้เอง ดู [คู่มือ](docs/MCP-SERVER-MANAGER-TH.md)
+- เพิ่ม **MCP Server Manager** สำหรับติดตั้งและจัดการ MCP server จาก catalog โดยเริ่มด้วย Filesystem server ดู [คู่มือ](docs/MCP-SERVER-MANAGER-TH.md)
 - รองรับการส่ง task ข้าม agent/chat ด้วย `to_agent_id` และให้ broker เปิด Local Codex worker แบบ `--ephemeral` ตาม role เมื่อไม่มี agent ปลายทางเชื่อมต่อ
 
 ### ปรับปรุงใน beta.14

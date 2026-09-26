@@ -10,8 +10,10 @@ export type ExternalMcpDefinition = {
   cwd?: string;
   env: Record<string, string>;
   enabled: boolean;
-  source?: 'custom' | 'catalog';
+  source?: 'custom' | 'catalog' | 'github';
   catalogId?: string;
+  repositoryUrl?: string;
+  repositoryRef?: string;
   packageName?: string;
   packageVersion?: string;
   installDirectory?: string;
@@ -61,7 +63,12 @@ function copiedDefinition(value: ExternalMcpDefinition): ExternalMcpDefinition {
   }
   if (typeof value.enabled !== 'boolean')
     throw new Error(`MCP server ${value.id} enabled must be a boolean`);
-  if (value.source !== undefined && value.source !== 'custom' && value.source !== 'catalog')
+  if (
+    value.source !== undefined &&
+    value.source !== 'custom' &&
+    value.source !== 'catalog' &&
+    value.source !== 'github'
+  )
     throw new Error(`MCP server ${value.id} has an invalid source`);
   if (value.source === 'catalog') {
     if (
@@ -73,6 +80,19 @@ function copiedDefinition(value: ExternalMcpDefinition): ExternalMcpDefinition {
     )
       throw new Error(`Catalog MCP server ${value.id} is missing installation metadata`);
   }
+  if (value.source === 'github') {
+    if (
+      typeof value.repositoryUrl !== 'string' ||
+      !value.repositoryUrl.trim() ||
+      typeof value.repositoryRef !== 'string' ||
+      !value.repositoryRef.trim() ||
+      typeof value.packageName !== 'string' ||
+      typeof value.packageVersion !== 'string' ||
+      typeof value.installDirectory !== 'string' ||
+      !value.installDirectory.trim()
+    )
+      throw new Error(`GitHub MCP server ${value.id} is missing installation metadata`);
+  }
   return {
     id: value.id,
     name: value.name.trim(),
@@ -83,6 +103,8 @@ function copiedDefinition(value: ExternalMcpDefinition): ExternalMcpDefinition {
     enabled: value.enabled,
     ...(value.source ? { source: value.source } : {}),
     ...(value.catalogId ? { catalogId: value.catalogId } : {}),
+    ...(value.repositoryUrl ? { repositoryUrl: value.repositoryUrl } : {}),
+    ...(value.repositoryRef ? { repositoryRef: value.repositoryRef } : {}),
     ...(value.packageName ? { packageName: value.packageName } : {}),
     ...(value.packageVersion ? { packageVersion: value.packageVersion } : {}),
     ...(value.installDirectory ? { installDirectory: value.installDirectory } : {}),

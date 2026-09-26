@@ -101,3 +101,85 @@ test('uses the same per-user data directory as the server store when no install 
     rmSync(localAppData, { recursive: true, force: true });
   }
 });
+
+test('installs a GitHub MCP repository and selects its matching executable automatically', async () => {
+  assert.ok(installerModule?.ExternalMcpInstaller);
+  const root = mkdtempSync(join(tmpdir(), 'dwb-external-mcp-github-'));
+  let receivedRepositoryUrl = '';
+  let receivedRef = '';
+  const installer = new installerModule.ExternalMcpInstaller({
+    rootDir: root,
+    prepareGitHubRepository: async (stage: string, repositoryUrl: string, ref: string) => {
+      receivedRepositoryUrl = repositoryUrl;
+      receivedRef = ref;
+      mkdirSync(join(stage, 'dist', 'src'), { recursive: true });
+      writeFileSync(
+        join(stage, 'package.json'),
+        JSON.stringify({
+          name: 'raven-roblox-mcp',
+          version: '0.5.0',
+          bin: {
+            'raven-roblox-mcp': 'dist/src/cli.js',
+            'raven-roblox-daemon': 'dist/src/index.js',
+          },
+        }),
+      );
+      writeFileSync(join(stage, 'dist', 'src', 'cli.js'), 'process.exit(0);');
+      writeFileSync(join(stage, 'dist', 'src', 'index.js'), 'process.exit(0);');
+    },
+  });
+  try {
+    const installed = await installer.installGitHubRepository(
+      'https://github.com/valrinx/raven-roblox-mcp',
+    );
+    assert.equal(receivedRepositoryUrl, 'https://github.com/valrinx/raven-roblox-mcp');
+    assert.equal(receivedRef, 'HEAD');
+    assert.equal(installed.name, 'raven-roblox-mcp');
+    assert.equal(
+      installer.getGitHubRepositoryId('https://github.com/valrinx/raven-roblox-mcp'),
+      installed.id,
+    );
+    assert.equal(installed.source, 'github');
+    assert.equal(installed.repositoryUrl, 'https://github.com/valrinx/raven-roblox-mcp');
+    assert.equal(installed.repositoryRef, 'HEAD');
+    assert.equal(installed.packageName, 'raven-roblox-mcp');
+    assert.equal(installed.packageVersion, '0.5.0');
+    assert.equal(installed.command, process.execPath);
+    assert.deepEqual(installed.args, [
+      join(
+        installed.installDirectory,
+        'dist',
+        'src',
+        'cli.js',
+      ),
+    ]);
+    assert.equal(installed.enabled, false);
+    assert.equal(existsSync(installed.args[0]), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects a GitHub CLI repository that does not identify itself as an MCP package', async () => {
+  assert.ok(installerModule?.ExternalMcpInstaller);
+  const root = mkdtempSync(join(tmpdir(), 'dwb-external-mcp-github-not-mcp-'));
+  const installer = new installerModule.ExternalMcpInstaller({
+    rootDir: root,
+    prepareGitHubRepository: async (stage: string) => {
+      mkdirSync(join(stage, 'dist'), { recursive: true });
+      writeFileSync(
+        join(stage, 'package.json'),
+        JSON.stringify({ name: 'ordinary-cli', version: '1.0.0', bin: 'dist/cli.js' }),
+      );
+      writeFileSync(join(stage, 'dist', 'cli.js'), 'process.exit(0);');
+    },
+  });
+  try {
+    await assert.rejects(
+      installer.installGitHubRepository('https://github.com/example/ordinary-cli'),
+      /does not appear to be an MCP server/i,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

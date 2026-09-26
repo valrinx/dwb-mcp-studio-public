@@ -107,3 +107,48 @@ test('removing a catalog server releases manager ownership before uninstalling i
     await manager.shutdown();
   }
 });
+
+test('removing a GitHub server releases manager ownership before deleting its repository', async () => {
+  assert.ok(controllerModule?.ExternalMcpController);
+  assert.ok(managerModule?.ExternalMcpManager);
+  const definition = {
+    id: 'raven-roblox-mcp',
+    name: 'Raven Roblox MCP',
+    command: 'node',
+    args: ['C:\\DWB\\raven\\dist\\src\\cli.js'],
+    cwd: 'C:\\DWB\\raven',
+    env: {},
+    enabled: false,
+    source: 'github',
+    repositoryUrl: 'https://github.com/valrinx/raven-roblox-mcp',
+    repositoryRef: 'HEAD',
+    packageName: 'raven-roblox-mcp',
+    packageVersion: '0.5.0',
+    installDirectory: 'C:\\DWB\\raven',
+  };
+  let persisted = [definition];
+  const store = {
+    async load() {
+      return structuredClone(persisted);
+    },
+    async save(definitions: typeof persisted) {
+      persisted = structuredClone(definitions);
+    },
+  };
+  const manager = new managerModule.ExternalMcpManager([definition]);
+  let definitionsAtUninstall: string[] | null = null;
+  const installer = {
+    async removeInstallation() {
+      definitionsAtUninstall = manager.getDefinitions().map((server: { id: string }) => server.id);
+    },
+  };
+  const controller = new controllerModule.ExternalMcpController(store, manager, installer);
+  try {
+    const result = await controller.handle({ action: 'remove', id: definition.id });
+    assert.deepEqual(definitionsAtUninstall, []);
+    assert.deepEqual(persisted, []);
+    assert.deepEqual(result.servers, []);
+  } finally {
+    await manager.shutdown();
+  }
+});

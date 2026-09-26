@@ -38,9 +38,9 @@ export class ExternalMcpController {
       if (!removed) throw new Error(`Unknown MCP server: ${request.id}`);
       await this.replace(definitions.filter((definition) => definition.id !== request.id));
       try {
-        if (removed.source === 'catalog') {
+        if (removed.source === 'catalog' || removed.source === 'github') {
           if (!this.installer)
-            throw new Error('Catalog MCP package removal is unavailable in this process');
+            throw new Error('Managed MCP installation removal is unavailable in this process');
           await this.installer.removeInstallation(removed);
         }
       } catch (error) {

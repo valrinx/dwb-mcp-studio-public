@@ -95,8 +95,8 @@ async function offlineResult(request) {
 }
 
 try {
-  if (!['catalog', 'install', 'list', 'save', 'remove'].includes(action))
-    throw new Error('Action must be catalog, install, list, save, or remove');
+  if (!['catalog', 'install', 'install-github', 'list', 'save', 'remove'].includes(action))
+    throw new Error('Action must be catalog, install, install-github, list, save, or remove');
   if (action === 'catalog') {
     process.stdout.write(
       JSON.stringify({ catalog: installer.listCatalog(), status: [], brokerRunning: false }),
@@ -123,6 +123,35 @@ try {
         await store.save([...existing, installed]);
         process.stdout.write(
           JSON.stringify({ servers: await store.load(), status: [], brokerRunning: false }),
+        );
+      }
+    } catch (error) {
+      await installer.removeInstallation(installed).catch(() => {});
+      throw error;
+    }
+  } else if (action === 'install-github') {
+    const input = await readInput();
+    if (typeof input.repositoryUrl !== 'string')
+      throw new Error('Paste a GitHub repository URL first.');
+    const existing = await store.load();
+    const repositoryId = installer.getGitHubRepositoryId(input.repositoryUrl);
+    if (existing.some((server) => server.id === repositoryId))
+      throw new Error('This GitHub MCP repository is already registered.');
+    const installed = await installer.installGitHubRepository(input.repositoryUrl);
+    try {
+      try {
+        const result = await requestBroker({ action: 'save', servers: [...existing, installed] });
+        process.stdout.write(JSON.stringify({ ...result, brokerRunning: true, installedId: installed.id }));
+      } catch (error) {
+        if (!offlineCodes.has(error?.code)) throw error;
+        await store.save([...existing, installed]);
+        process.stdout.write(
+          JSON.stringify({
+            servers: await store.load(),
+            status: [],
+            brokerRunning: false,
+            installedId: installed.id,
+          }),
         );
       }
     } catch (error) {

@@ -5,8 +5,9 @@ try{
   if($LASTEXITCODE -ne 0){throw "MCP Manager UI test process failed ($LASTEXITCODE)"}
   if(-not (Test-Path -LiteralPath $report)){throw 'MCP Manager UI did not produce its control verification report.'}
   $result=Get-Content -LiteralPath $report -Raw -Encoding UTF8
-  if($result -notmatch '^PASS: MCP Manager WPF loaded'){throw $result}
-  Write-Output 'MCP_MANAGER_UI_PASS: WPF window loaded with server list and editor controls.'
+  $expected='PASS: MCP Manager UI behavior: servers=3; enabled=2; running=1; issues=1; empty=visible; scroll=available; window=fitted; layout=nonoverlapping'
+  if($result.Trim() -ne $expected){throw "Expected '$expected'; got '$result'"}
+  Write-Output 'MCP_MANAGER_UI_PASS: summary, empty state, scrolling, display fitting, and section layout verified.'
 }finally{
   if(Test-Path -LiteralPath $report){Remove-Item -LiteralPath $report -Force}
 }
