@@ -41,11 +41,13 @@ function Invoke-McpManager([string]$Action,$Payload=@{},[int]$TimeoutMs=20000){
   $info.WorkingDirectory=$PSScriptRoot
   $info.UseShellExecute=$false;$info.CreateNoWindow=$true
   $info.RedirectStandardInput=$true;$info.RedirectStandardOutput=$true;$info.RedirectStandardError=$true
-  $info.StandardInputEncoding=[Text.Encoding]::UTF8;$info.StandardOutputEncoding=[Text.Encoding]::UTF8;$info.StandardErrorEncoding=[Text.Encoding]::UTF8
+  $info.StandardOutputEncoding=[Text.Encoding]::UTF8;$info.StandardErrorEncoding=[Text.Encoding]::UTF8
   $process=[Diagnostics.Process]::Start($info)
   $stdoutTask=$process.StandardOutput.ReadToEndAsync();$stderrTask=$process.StandardError.ReadToEndAsync()
   $json=ConvertTo-Json -InputObject $Payload -Depth 24 -Compress
-  $process.StandardInput.Write($json);$process.StandardInput.Close()
+  $inputBytes=[Text.Encoding]::UTF8.GetBytes($json)
+  # Windows PowerShell 5.1's .NET Framework has no ProcessStartInfo.StandardInputEncoding setter.
+  $process.StandardInput.BaseStream.Write($inputBytes,0,$inputBytes.Length);$process.StandardInput.Close()
   if($Action -in @('install','install-github')){Wait-McpManagerProcess $process $TimeoutMs}
   elseif(-not $process.WaitForExit($TimeoutMs)){try{$process.Kill()}catch{};throw 'MCP management timed out.'}
   $stdout=$stdoutTask.GetAwaiter().GetResult();$stderr=$stderrTask.GetAwaiter().GetResult()
@@ -265,6 +267,22 @@ if($UiTest){
   foreach($name in @('Servers','Refresh','NewServer','SaveServer','RemoveServer','Enabled','Id','Name','Command','Cwd','Args','Environment','Catalog','AllowedDirectory','ChooseDirectory','InstallCatalog','CatalogInfo','GitHubRepository','InstallGitHub','GitHubStatus','GitHubStatusPanel','GitHubProgress','ActionStatus','Editor','AdvancedSettings','EditorTitle','ServerCount','EnabledCount','RunningCount','ProblemCount','BrokerState','BrokerDot','EmptyState')){
     if(-not (Find $name)){throw "MCP Manager is missing control: $name"}
   }
+  $managerProbe=Invoke-McpManager 'catalog' @{}
+  if(@($managerProbe.catalog).Count -ne 1 -or $managerProbe.catalog[0].id -ne 'filesystem'){throw 'MCP Manager could not exchange a UTF-8 request with its Node helper.'}
+  $testData=Join-Path $env:TEMP ('dwb-mcp-manager-stdin-'+[Guid]::NewGuid().ToString('N'))
+  $oldData=$env:DWB_DATA_DIR;$oldPipe=$env:DWB_BROKER_PIPE
+  try{
+    $env:DWB_DATA_DIR=$testData
+    $env:DWB_BROKER_PIPE='\\.\pipe\dwb-mcp-manager-test-'+[Guid]::NewGuid().ToString('N')
+    $unicodeServer=[pscustomobject]@{id='utf8-roundtrip';name='ทดสอบ MCP';command=$script:Node;args=@();env=@{LABEL='ภาษาไทย'};enabled=$false}
+    $null=Invoke-McpManager 'save' @{servers=@($unicodeServer)}
+    $unicodeProbe=Invoke-McpManager 'list' @{}
+    if($unicodeProbe.servers[0].name -ne 'ทดสอบ MCP' -or $unicodeProbe.servers[0].env.LABEL -ne 'ภาษาไทย'){throw 'MCP Manager corrupted UTF-8 data sent to its Node helper.'}
+  }finally{
+    if($null -eq $oldData){Remove-Item Env:DWB_DATA_DIR -ErrorAction SilentlyContinue}else{$env:DWB_DATA_DIR=$oldData}
+    if($null -eq $oldPipe){Remove-Item Env:DWB_BROKER_PIPE -ErrorAction SilentlyContinue}else{$env:DWB_BROKER_PIPE=$oldPipe}
+    if(Test-Path -LiteralPath $testData){Remove-Item -LiteralPath $testData -Recurse -Force}
+  }
   Set-GitHubInstallStatus 'GitHub install failed: test diagnostic' 'error'
   if((Find 'GitHubStatus').Text -ne 'GitHub install failed: test diagnostic' -or (Find 'GitHubStatus').Visibility -ne [Windows.Visibility]::Visible -or (Find 'GitHubProgress').Visibility -ne [Windows.Visibility]::Collapsed){throw 'GitHub installation feedback is not visible in the install panel.'}
   Set-GitHubInstallStatus 'GitHub install is running' 'working'
@@ -345,6 +363,6 @@ if($UiTest){
   if($footerBottom -gt $scroll.ViewportHeight){throw 'The MCP manager footer is not reachable by scrolling on a short display.'}
   Fit-McpManagerWindow ([Windows.Rect]::new(0,0,900,600))
   if($window.Width -gt 900 -or $window.Height -gt 600 -or $window.MinWidth -gt 900 -or $window.MinHeight -gt 600){throw 'The MCP manager window does not fit within the available display area.'}
-  if($UiTestReport){[IO.File]::WriteAllText($UiTestReport,'PASS: MCP Manager UI behavior: servers=3; enabled=2; running=1; issues=1; empty=visible; scroll=available; GitHub feedback=visible; progress=shown; window=fitted; layout=nonoverlapping')}
+  if($UiTestReport){[IO.File]::WriteAllText($UiTestReport,'PASS: MCP Manager UI behavior: servers=3; enabled=2; running=1; issues=1; UTF-8 helper round-trip=verified; empty=visible; scroll=available; GitHub feedback=visible; progress=shown; window=fitted; layout=nonoverlapping')}
   $window.Close()
 }else{$null=$window.ShowDialog()}
