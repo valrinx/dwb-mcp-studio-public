@@ -114,6 +114,21 @@ function Update-CatalogInfo{
   (Find 'ChooseDirectory').IsEnabled=[bool]$entry.allowedDirectoryArg
 }
 
+function Set-GitHubInstallStatus([string]$Message,[ValidateSet('info','working','success','error')][string]$State='info'){
+  $status=Find 'GitHubStatus';$panel=Find 'GitHubStatusPanel';$progress=Find 'GitHubProgress'
+  $palette=@{
+    info=@{Foreground='#AFC1D2';Border='#34446F'}
+    working=@{Foreground='#8DEAF2';Border='#3A8190'}
+    success=@{Foreground='#8AF0B8';Border='#34765B'}
+    error=@{Foreground='#FF9AAE';Border='#9B455B'}
+  }
+  $converter=New-Object Windows.Media.BrushConverter
+  $status.Text=$Message
+  $status.Foreground=$converter.ConvertFromString($palette[$State].Foreground)
+  $panel.BorderBrush=$converter.ConvertFromString($palette[$State].Border)
+  $progress.Visibility=if($State -eq 'working'){'Visible'}else{'Collapsed'}
+}
+
 function Refresh-Catalog{
   try{
     $data=Invoke-McpManager 'catalog' @{}
@@ -190,7 +205,8 @@ function New-ServerForm{
       [Windows.MessageBoxButton]::OKCancel,
       [Windows.MessageBoxImage]::Warning)
     if($confirmation -ne [Windows.MessageBoxResult]::OK){return}
-    (Find 'ActionStatus').Text='กำลังดาวน์โหลด repo และติดตั้ง dependencies…'
+    Set-GitHubInstallStatus 'กำลังดาวน์โหลด repo และติดตั้ง dependencies… อาจใช้เวลาหลายนาที' 'working'
+    (Find 'ActionStatus').Text='กำลังติดตั้งจาก GitHub… กรุณารอสักครู่'
     $busyStates=@()
     foreach($name in @('InstallGitHub','InstallCatalog','Refresh','NewServer','SaveServer','RemoveServer')){
       $control=Find $name
@@ -201,9 +217,15 @@ function New-ServerForm{
       Update-ServerList $data
       $script:SelectedId=[string]$data.installedId
       Load-Server $script:SelectedId
-      (Find 'ActionStatus').Text='ติดตั้งเรียบร้อยและปิดใช้งานอยู่ · ตรวจสอบแล้วเปิดใช้เมื่อต้องการ'
+      Set-GitHubInstallStatus 'เพิ่ม server ในรายการแล้ว · ตอนนี้ปิดใช้งานอยู่ เลือก “เปิดใช้งาน” แล้วกดบันทึกเมื่อต้องการใช้' 'success'
+      (Find 'ActionStatus').Text='ติดตั้งเรียบร้อย · เปิดใช้งานและบันทึกเพื่อเริ่มใช้ server นี้'
     }finally{foreach($state in $busyStates){$state.Control.IsEnabled=$state.WasEnabled}}
-  }catch{(Find 'ActionStatus').Text=$_.Exception.Message}
+  }catch{
+    $message=$_.Exception.Message
+    Set-GitHubInstallStatus ('ติดตั้งไม่สำเร็จ · '+$message) 'error'
+    (Find 'ActionStatus').Text='ติดตั้งจาก GitHub ไม่สำเร็จ · ไม่มีการเพิ่ม server'
+    [Windows.MessageBox]::Show("ติดตั้ง MCP จาก GitHub ไม่สำเร็จ`n`n$message",'ติดตั้งจาก GitHub ไม่สำเร็จ',[Windows.MessageBoxButton]::OK,[Windows.MessageBoxImage]::Error)|Out-Null
+  }
 })
 (Find 'NewServer').Add_Click({New-ServerForm})
 (Find 'Servers').Add_SelectionChanged({$selected=(Find 'Servers').SelectedItem;if($selected){Load-Server $selected.Id}})
@@ -240,9 +262,13 @@ function New-ServerForm{
 })
 $window.Add_ContentRendered({Refresh-Catalog;Refresh-Servers})
 if($UiTest){
-  foreach($name in @('Servers','Refresh','NewServer','SaveServer','RemoveServer','Enabled','Id','Name','Command','Cwd','Args','Environment','Catalog','AllowedDirectory','ChooseDirectory','InstallCatalog','CatalogInfo','GitHubRepository','InstallGitHub','ActionStatus','Editor','AdvancedSettings','EditorTitle','ServerCount','EnabledCount','RunningCount','ProblemCount','BrokerState','BrokerDot','EmptyState')){
+  foreach($name in @('Servers','Refresh','NewServer','SaveServer','RemoveServer','Enabled','Id','Name','Command','Cwd','Args','Environment','Catalog','AllowedDirectory','ChooseDirectory','InstallCatalog','CatalogInfo','GitHubRepository','InstallGitHub','GitHubStatus','GitHubStatusPanel','GitHubProgress','ActionStatus','Editor','AdvancedSettings','EditorTitle','ServerCount','EnabledCount','RunningCount','ProblemCount','BrokerState','BrokerDot','EmptyState')){
     if(-not (Find $name)){throw "MCP Manager is missing control: $name"}
   }
+  Set-GitHubInstallStatus 'GitHub install failed: test diagnostic' 'error'
+  if((Find 'GitHubStatus').Text -ne 'GitHub install failed: test diagnostic' -or (Find 'GitHubStatus').Visibility -ne [Windows.Visibility]::Visible -or (Find 'GitHubProgress').Visibility -ne [Windows.Visibility]::Collapsed){throw 'GitHub installation feedback is not visible in the install panel.'}
+  Set-GitHubInstallStatus 'GitHub install is running' 'working'
+  if((Find 'GitHubProgress').Visibility -ne [Windows.Visibility]::Visible){throw 'GitHub installation progress is not shown while work is running.'}
   $githubServer=[pscustomobject]@{
     source='github';repositoryUrl='https://github.com/example/raven-mcp';repositoryRef='main'
     packageName='raven-mcp';packageVersion='1.2.3';installDirectory='C:\DWB\mcp-servers\raven-mcp'
@@ -319,6 +345,6 @@ if($UiTest){
   if($footerBottom -gt $scroll.ViewportHeight){throw 'The MCP manager footer is not reachable by scrolling on a short display.'}
   Fit-McpManagerWindow ([Windows.Rect]::new(0,0,900,600))
   if($window.Width -gt 900 -or $window.Height -gt 600 -or $window.MinWidth -gt 900 -or $window.MinHeight -gt 600){throw 'The MCP manager window does not fit within the available display area.'}
-  if($UiTestReport){[IO.File]::WriteAllText($UiTestReport,'PASS: MCP Manager UI behavior: servers=3; enabled=2; running=1; issues=1; empty=visible; scroll=available; window=fitted; layout=nonoverlapping')}
+  if($UiTestReport){[IO.File]::WriteAllText($UiTestReport,'PASS: MCP Manager UI behavior: servers=3; enabled=2; running=1; issues=1; empty=visible; scroll=available; GitHub feedback=visible; progress=shown; window=fitted; layout=nonoverlapping')}
   $window.Close()
 }else{$null=$window.ShowDialog()}

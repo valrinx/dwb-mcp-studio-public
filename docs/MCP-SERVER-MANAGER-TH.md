@@ -12,7 +12,7 @@ Filesystem server ให้ tools สำหรับอ่าน เขียน
 
 ## ติดตั้งจาก GitHub
 
-วาง URL ของ public GitHub repository ในช่อง **GitHub repository** แล้วกด **ติดตั้งจาก GitHub** ตัวอย่าง `https://github.com/valrinx/raven-roblox-mcp` หรือระบุ branch/tag ด้วย `/tree/<ชื่อ>` หรือ `#<ชื่อ>` ระบบจะ clone repo, ติดตั้ง dependencies และเลือก executable จาก `package.json` ให้โดยอัตโนมัติ จากนั้นจะแสดง server ในรายการโดยปิดใช้งานไว้ก่อน
+วาง URL ของ public GitHub repository ในช่อง **GitHub repository** แล้วกด **ติดตั้งจาก GitHub** ตัวอย่าง `https://github.com/valrinx/raven-roblox-mcp` หรือระบุ branch/tag ด้วย `/tree/<ชื่อ>` หรือ `#<ชื่อ>` ระบบจะ clone repo, ติดตั้ง dependencies และเลือก executable จาก `package.json` ให้โดยอัตโนมัติ จากนั้นจะแสดง server ในรายการโดยปิดใช้งานไว้ก่อน แถบสถานะในกรอบ GitHub แสดงความคืบหน้าและผลลัพธ์ทันที; หากติดตั้งไม่สำเร็จจะแจ้งสาเหตุในหน้าต่างเตือน
 
 รอบนี้รองรับ repository ของ Node.js ที่มี `package.json`, ระบุสัญญาณว่าเป็น MCP และประกาศ executable (`bin`) ที่เลือกได้ชัดเจนเท่านั้น หากเป็น Python, Docker, monorepo ที่ไม่มี executable ที่ root หรือมีหลาย executable ที่ระบุไม่ได้ ระบบจะไม่เดาคำสั่งให้ และยังเพิ่มเองได้ผ่าน **เพิ่ม server เอง**
 
