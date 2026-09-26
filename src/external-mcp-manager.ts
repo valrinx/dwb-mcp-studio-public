@@ -1,6 +1,9 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+
+export type ExternalMcpTransport = 'stdio' | 'streamable-http';
 
 export type ExternalMcpDefinition = {
   id: string;
@@ -10,7 +13,10 @@ export type ExternalMcpDefinition = {
   cwd?: string;
   env: Record<string, string>;
   enabled: boolean;
-  source?: 'custom' | 'catalog' | 'github';
+  transport?: ExternalMcpTransport;
+  url?: string;
+  source?: 'custom' | 'catalog' | 'github' | 'app';
+  appId?: string;
   catalogId?: string;
   repositoryUrl?: string;
   repositoryRef?: string;
@@ -21,7 +27,7 @@ export type ExternalMcpDefinition = {
 
 type ConnectedServer = {
   client: Client;
-  transport: StdioClientTransport;
+  transport: StdioClientTransport | StreamableHTTPClientTransport;
 };
 
 type ToolRoute = {
@@ -49,10 +55,26 @@ function copiedDefinition(value: ExternalMcpDefinition): ExternalMcpDefinition {
     );
   if (typeof value.name !== 'string' || !value.name.trim())
     throw new Error(`MCP server ${value.id} requires a name`);
-  if (typeof value.command !== 'string' || !value.command.trim())
-    throw new Error(`MCP server ${value.id} requires an executable command`);
+  const transport = value.transport ?? 'stdio';
+  if (transport !== 'stdio' && transport !== 'streamable-http')
+    throw new Error(`MCP server ${value.id} has an invalid transport`);
+  if (typeof value.command !== 'string')
+    throw new Error(`MCP server ${value.id} command must be a string`);
   if (!Array.isArray(value.args) || value.args.some((arg) => typeof arg !== 'string'))
     throw new Error(`MCP server ${value.id} args must be an array of strings`);
+  if (transport === 'stdio' && !value.command.trim())
+    throw new Error(`MCP server ${value.id} requires an executable command`);
+  if (transport === 'streamable-http') {
+    if (typeof value.url !== 'string' || !value.url.trim())
+      throw new Error(`MCP server ${value.id} requires an HTTPS URL`);
+    let url: URL;
+    try {
+      url = new URL(value.url);
+    } catch {
+      throw new Error(`MCP server ${value.id} requires an HTTPS URL`);
+    }
+    if (url.protocol !== 'https:') throw new Error(`MCP server ${value.id} requires an HTTPS URL`);
+  }
   if (value.cwd !== undefined && typeof value.cwd !== 'string')
     throw new Error(`MCP server ${value.id} working directory must be a string`);
   if (!value.env || typeof value.env !== 'object' || Array.isArray(value.env))
@@ -67,7 +89,8 @@ function copiedDefinition(value: ExternalMcpDefinition): ExternalMcpDefinition {
     value.source !== undefined &&
     value.source !== 'custom' &&
     value.source !== 'catalog' &&
-    value.source !== 'github'
+    value.source !== 'github' &&
+    value.source !== 'app'
   )
     throw new Error(`MCP server ${value.id} has an invalid source`);
   if (value.source === 'catalog') {
@@ -93,6 +116,8 @@ function copiedDefinition(value: ExternalMcpDefinition): ExternalMcpDefinition {
     )
       throw new Error(`GitHub MCP server ${value.id} is missing installation metadata`);
   }
+  if (value.source === 'app' && (typeof value.appId !== 'string' || !value.appId.trim()))
+    throw new Error(`App MCP server ${value.id} is missing app metadata`);
   return {
     id: value.id,
     name: value.name.trim(),
@@ -101,7 +126,10 @@ function copiedDefinition(value: ExternalMcpDefinition): ExternalMcpDefinition {
     ...(value.cwd?.trim() ? { cwd: value.cwd.trim() } : {}),
     env: { ...value.env },
     enabled: value.enabled,
+    ...(transport !== 'stdio' ? { transport } : {}),
+    ...(value.url?.trim() ? { url: value.url.trim() } : {}),
     ...(value.source ? { source: value.source } : {}),
+    ...(value.appId ? { appId: value.appId.trim() } : {}),
     ...(value.catalogId ? { catalogId: value.catalogId } : {}),
     ...(value.repositoryUrl ? { repositoryUrl: value.repositoryUrl } : {}),
     ...(value.repositoryRef ? { repositoryRef: value.repositoryRef } : {}),
@@ -312,14 +340,25 @@ export class ExternalMcpManager {
     runtime: SessionRuntime,
     definition: ExternalMcpDefinition,
   ): Promise<ConnectedServer> {
-    const transport = new StdioClientTransport({
-      command: definition.command,
-      args: [...definition.args],
-      ...(definition.cwd ? { cwd: definition.cwd } : {}),
-      env: { ...definition.env },
-      stderr: 'ignore',
-      maxBufferSize: 10 * 1024 * 1024,
-    });
+    const transport =
+      definition.transport === 'streamable-http'
+        ? new StreamableHTTPClientTransport(new URL(definition.url!), {
+            ...(definition.env.MCP_AUTH_TOKEN
+              ? {
+                  requestInit: {
+                    headers: { Authorization: `Bearer ${definition.env.MCP_AUTH_TOKEN}` },
+                  },
+                }
+              : {}),
+          })
+        : new StdioClientTransport({
+            command: definition.command,
+            args: [...definition.args],
+            ...(definition.cwd ? { cwd: definition.cwd } : {}),
+            env: { ...definition.env },
+            stderr: 'ignore',
+            maxBufferSize: 10 * 1024 * 1024,
+          });
     const client = new Client({ name: 'dwb-external-mcp', version: '0.1.0' });
     try {
       await client.connect(transport, { timeout: 8_000 });

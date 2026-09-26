@@ -76,6 +76,9 @@ foreach($case in $cases){
   Assert-Brand ($brand -and $brand.Text -eq $case.Brand) "$($case.File) is missing the N3zuui brand title."
   $surface=if($case.File -eq 'setup.xaml'){$window.FindName('WindowSurface')}else{$window}
   Assert-GraphiteSurface $surface.Background $case.File
+  Assert-Brand ($window.UseLayoutRounding -and $window.SnapsToDevicePixels) "$($case.File) must enable pixel-aligned layout for crisp text at non-100% DPI scaling."
+  Assert-Brand ([Windows.Media.TextOptions]::GetTextFormattingMode($window) -eq [Windows.Media.TextFormattingMode]::Display) "$($case.File) must use display text formatting for crisp small labels."
+  Assert-Brand ([Windows.Media.TextOptions]::GetTextRenderingMode($window) -eq [Windows.Media.TextRenderingMode]::ClearType) "$($case.File) must use ClearType text rendering for crisp UI text."
   if($case.File -eq 'setup.xaml'){
     $brandImage=$window.FindName('BrandImage')
     Assert-Brand ($brandImage -and $brandImage.Stretch -eq [Windows.Media.Stretch]::Uniform) 'setup.xaml must keep the full N3zuui wordmark visible inside the square brand panel.'
@@ -87,9 +90,29 @@ foreach($case in $cases){
     Assert-Brand ($logo -and $logo.Width -ge 112 -and $logo.Height -ge 112 -and $logoFrame.Padding.Left -le 8) 'dashboard.xaml must let the centered N3 mark use the square frame without excessive inset padding.'
     $stats=$window.FindName('StatsCards')
     Assert-Brand ($stats -and $stats.Columns -eq 4) 'dashboard.xaml must keep the four status cards in one equal-column row.'
+    $rightScroll=$window.Content.Children[1]
+    Assert-Brand ($rightScroll -is [Windows.Controls.ScrollViewer] -and $rightScroll.VerticalScrollBarVisibility -eq [Windows.Controls.ScrollBarVisibility]::Auto) 'dashboard.xaml must keep the main content reachable when the window is shorter than the full dashboard layout.'
+    $rightGrid=$rightScroll.Content
+    Assert-Brand ($rightGrid.RowDefinitions.Count -ge 9 -and $rightGrid.RowDefinitions[3].Height.GridUnitType -eq [Windows.GridUnitType]::Pixel -and $rightGrid.RowDefinitions[3].Height.Value -ge 150) 'dashboard.xaml must reserve the full minimum height of the Workers and Sessions panel.'
+    $startMcp=$window.FindName('StartMcp')
+    $stopMcp=$window.FindName('StopMcp')
+    Assert-Brand ($startMcp -is [Windows.Controls.Button] -and $stopMcp -is [Windows.Controls.Button] -and $window.FindName('Refresh') -is [Windows.Controls.Button] -and $null -eq $window.FindName('McpToggle')) 'dashboard.xaml must use the original separate Refresh, Stop, and Start MCP buttons.'
+    $dashboardCode=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'dashboard.ps1') -Raw
+    Assert-Brand ($dashboardCode.Contains("Find 'StartMcp'") -and $dashboardCode.Contains("Find 'StopMcp'") -and $dashboardCode.Contains('Start-DwbTunnel') -and $dashboardCode.Contains('Stop-DwbTunnel') -and -not $dashboardCode.Contains('McpToggle')) 'dashboard.ps1 must wire the original separate Start/Stop MCP actions.'
+    Assert-Brand ($dashboardCode.Contains('Set-DashboardRoundedClip')) 'dashboard.ps1 must clip dashboard tables to their rounded panel corners.'
+    $statCards=@($stats.Children | Where-Object {$_ -is [Windows.Controls.Border]})
+    Assert-Brand ($statCards.Count -eq 4) 'dashboard.xaml status cards must remain separate elevated surfaces.'
+    foreach($card in $statCards){
+      Assert-Brand ($card.Effect -is [Windows.Media.Effects.DropShadowEffect] -and $card.Effect.BlurRadius -ge 12 -and $card.Effect.ShadowDepth -ge 3 -and $card.Effect.Opacity -ge 0.25) 'dashboard.xaml status cards need a soft depth shadow to separate them from the graphite background.'
+    }
     foreach($frameName in @('SessionsFrame','AgentsFrame','TasksFrame','EventsFrame')){
       $frame=$window.FindName($frameName)
       Assert-Brand ($frame -and $frame.BorderThickness.Left -eq 1 -and $frame.CornerRadius.TopLeft -ge 10) "dashboard.xaml is missing the symmetric $frameName panel."
+      $edge=$window.FindName(($frameName -replace 'Frame$','Edge'))
+      Assert-Brand ($edge -and $edge.IsHitTestVisible -eq $false -and $edge.CornerRadius.TopLeft -ge 10 -and $edge.BorderThickness.Left -eq 1) "dashboard.xaml $frameName needs a visible rounded edge above its DataGrid content."
+      Assert-Brand ($frame.Padding.Left -ge 1 -and $frame.Padding.Top -ge 1) "dashboard.xaml $frameName needs an inset surface so its table cannot erase the rounded outer frame."
+      Assert-Brand ($frame.Background -is [Windows.Media.SolidColorBrush] -and $frame.Background.Color.R -ge 18 -and $frame.Background.Color.B -ge 34) "dashboard.xaml $frameName needs a lifted graphite surface instead of a sunken near-black panel."
+      Assert-Brand ($frame.Effect -is [Windows.Media.Effects.DropShadowEffect] -and $frame.Effect.BlurRadius -ge 18 -and $frame.Effect.ShadowDepth -ge 5 -and $frame.Effect.Opacity -ge 0.5) "dashboard.xaml $frameName needs a stronger soft elevation shadow."
     }
   }
 }

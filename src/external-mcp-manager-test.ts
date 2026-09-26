@@ -58,3 +58,42 @@ test('namespaces duplicate external tools and routes each call to its owning std
   assert.equal(alpha.content[0].text, 'alpha:first');
   assert.equal(beta.content[0].text, 'beta:second');
 });
+
+test('accepts an app integration as a validated streamable HTTP server definition', () => {
+  assert.ok(managerModule?.normalizeExternalMcpDefinitions);
+  const [definition] = managerModule.normalizeExternalMcpDefinitions([
+    {
+      id: 'linear',
+      name: 'Linear',
+      command: '',
+      args: [],
+      env: {},
+      enabled: false,
+      source: 'app',
+      appId: 'linear',
+      transport: 'streamable-http',
+      url: 'https://mcp.linear.app/mcp',
+    },
+  ]);
+  assert.equal(definition.transport, 'streamable-http');
+  assert.equal(definition.url, 'https://mcp.linear.app/mcp');
+  assert.equal(definition.source, 'app');
+  assert.throws(
+    () =>
+      managerModule.normalizeExternalMcpDefinitions([
+        {
+          id: 'unsafe-app',
+          name: 'Unsafe',
+          command: '',
+          args: [],
+          env: {},
+          enabled: false,
+          source: 'app',
+          appId: 'unsafe-app',
+          transport: 'streamable-http',
+          url: 'http://127.0.0.1:3000/mcp',
+        },
+      ]),
+    /HTTPS URL/,
+  );
+});

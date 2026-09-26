@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { createConnection } from 'node:net';
 import { ExternalMcpStore } from '../dist/external-mcp-store.js';
 import { ExternalMcpInstaller } from '../dist/external-mcp-installer.js';
+import { listExternalAppCatalog } from '../dist/external-app-catalog.js';
+import { createExternalAppDefinition } from '../dist/external-app-integration.js';
 import { brokerEndpoint } from '../dist/broker-protocol.js';
 
 const action = process.argv[2] ?? '';
@@ -95,13 +97,46 @@ async function offlineResult(request) {
 }
 
 try {
-  if (!['catalog', 'install', 'install-github', 'list', 'save', 'remove'].includes(action))
-    throw new Error('Action must be catalog, install, install-github, list, save, or remove');
+  if (
+    ![
+      'catalog',
+      'apps-catalog',
+      'install-app',
+      'install',
+      'install-github',
+      'list',
+      'save',
+      'remove',
+    ].includes(action)
+  )
+    throw new Error(
+      'Action must be catalog, apps-catalog, install-app, install, install-github, list, save, or remove',
+    );
   if (action === 'catalog') {
     process.stdout.write(
       JSON.stringify({ catalog: installer.listCatalog(), status: [], brokerRunning: false }),
     );
     process.exitCode = 0;
+  } else if (action === 'apps-catalog') {
+    process.stdout.write(
+      JSON.stringify({ appsCatalog: listExternalAppCatalog(), status: [], brokerRunning: false }),
+    );
+    process.exitCode = 0;
+  } else if (action === 'install-app') {
+    const input = await readInput();
+    if (typeof input.appId !== 'string') throw new Error('Choose an app integration to install');
+    const existing = await store.load();
+    const installed = createExternalAppDefinition(input.appId);
+    if (existing.some((server) => server.id === installed.id))
+      throw new Error(`MCP server ID already exists: ${installed.id}`);
+    const result = await requestBroker({ action: 'save', servers: [...existing, installed] }).catch(
+      async (error) => {
+        if (!offlineCodes.has(error?.code)) throw error;
+        await store.save([...existing, installed]);
+        return { servers: await store.load(), status: [], brokerRunning: false };
+      },
+    );
+    process.stdout.write(JSON.stringify({ ...result, installedId: installed.id }));
   } else if (action === 'install') {
     const input = await readInput();
     if (typeof input.catalogId !== 'string')
@@ -141,7 +176,9 @@ try {
     try {
       try {
         const result = await requestBroker({ action: 'save', servers: [...existing, installed] });
-        process.stdout.write(JSON.stringify({ ...result, brokerRunning: true, installedId: installed.id }));
+        process.stdout.write(
+          JSON.stringify({ ...result, brokerRunning: true, installedId: installed.id }),
+        );
       } catch (error) {
         if (!offlineCodes.has(error?.code)) throw error;
         await store.save([...existing, installed]);

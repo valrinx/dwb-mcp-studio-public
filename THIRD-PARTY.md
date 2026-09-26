@@ -16,7 +16,7 @@ The DWB worker loader redirects the supported external worker's configuration-ho
 
 | Component                 | Version reviewed       | License                                                                                                     | Delivery                                      |
 | ------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| N3zuui source and launcher | 0.1.0-beta.21         | [N3zuui Proprietary License](LICENSE) + [upstream MIT notice](LICENSE-UPSTREAM-MIT)                         | Included in this repository and release       |
+| N3zuui source and launcher | 0.1.0-beta.22         | [N3zuui Proprietary License](LICENSE) + [upstream MIT notice](LICENSE-UPSTREAM-MIT)                         | Included in this repository and release       |
 | Desktop Commander         | 0.2.50                 | [MIT, upstream license](https://raw.githubusercontent.com/wonderwhy-er/DesktopCommanderMCP/v0.2.50/LICENSE) | Downloaded by Setup from npm                  |
 | OpenAI tunnel-client      | 0.0.11                 | [Apache-2.0, upstream license](https://raw.githubusercontent.com/openai/tunnel-client/v0.0.11/LICENSE)      | Downloaded by Setup from the upstream release |
 | MCP SDK / server / client | 1.30.0 / 2.0.0 / 2.0.0 | MIT (installed package licenses and lockfile)                                                               | Downloaded by npm                             |

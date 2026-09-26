@@ -2,7 +2,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="N3zuui · OpenAI Tunnel" Width="780" Height="740" MinWidth="620" MinHeight="560"
         Foreground="#EAFBFF" FontFamily="Leelawadee UI, Segoe UI"
-        FontSize="14" WindowStartupLocation="CenterScreen">
+        FontSize="14" WindowStartupLocation="CenterScreen"
+        UseLayoutRounding="True" SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType">
   <Window.Background><RadialGradientBrush Center="0.78,1" GradientOrigin="0.78,1" RadiusX="1.15" RadiusY="1.05"><GradientStop Color="#171A20" Offset="0"/><GradientStop Color="#0D0F13" Offset="0.48"/><GradientStop Color="#08090C" Offset="1"/></RadialGradientBrush></Window.Background>
   <Window.Resources>
     <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style>

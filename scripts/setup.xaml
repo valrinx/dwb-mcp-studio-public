@@ -4,7 +4,8 @@
         WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True"
         Background="Transparent" WindowStartupLocation="CenterScreen"
         FontFamily="Leelawadee UI, Segoe UI" FontSize="14" Foreground="#EAFBFF"
-        UseLayoutRounding="True" SnapsToDevicePixels="True">
+        UseLayoutRounding="True" SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType">
   <Window.Resources>
     <SolidColorBrush x:Key="Muted" Color="#8D98A3"/>
     <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style>

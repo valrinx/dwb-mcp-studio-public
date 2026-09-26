@@ -2,13 +2,23 @@
 
 เปิด Dashboard แล้วเลือก **MCP Servers** เพื่อเพิ่ม server แบบ stdio, แก้ไขค่า, เปิด/ปิด, ดูสถานะ และลบออกได้ สถานะ Broker แสดงเป็นจุดกะทัดรัด; ชี้เมาส์เพื่ออ่านข้อความสถานะ การเปลี่ยนแปลงจะบันทึกไว้แม้ broker ยังไม่ทำงาน และจะมีผลเมื่อ MCP เชื่อมต่อครั้งถัดไป
 
-## ติดตั้งจาก catalog
+## ติดตั้งจาก reference catalog
 
-รุ่นแรกมี catalog ที่คัดไว้หนึ่งรายการ: **Filesystem** จาก `@modelcontextprotocol/server-filesystem@2026.8.31` เลือกโฟลเดอร์ที่ต้องการให้ server ใช้ แล้วกด **Install** ระบบจะติดตั้งลงในโฟลเดอร์เฉพาะของ DWB ตรวจชื่อแพ็กเกจ รุ่น และ entry point ก่อนบันทึก และเริ่มต้นเป็นสถานะปิดใช้งาน ผู้ใช้ต้องเลือก server เปิด **Enabled** แล้วกด **Save** เองก่อน MCP จะเริ่มเรียกใช้
+หน้า **ติดตั้งจาก Catalog** ใช้ dropdown และปุ่ม **ติดตั้ง server** สำหรับ official reference servers ของ Model Context Protocol 4 รายการ: **Everything**, **Filesystem**, **Memory** และ **Sequential Thinking** โดยใช้ package/version แบบ pin ที่ตรวจสอบ identity ก่อนบันทึก; **Filesystem** ต้องเลือกโฟลเดอร์ที่อนุญาตก่อน ระบบจะติดตั้งลงในโฟลเดอร์เฉพาะของ DWB และเริ่มต้นเป็นสถานะปิดใช้งาน ผู้ใช้ต้องเลือก server เปิด **Enabled** แล้วกด **Save** เองก่อน MCP จะเริ่มเรียกใช้
+
+ปุ่ม official ชุดนี้ใช้ reference servers แบบ Node.js ที่ติดตั้งผ่าน npm ได้โดยตรง ส่วน official reference servers ที่เป็น Python (`Fetch`, `Git`, `Time`) ยังไม่แสดงเป็น Quick Install จนกว่าจะมี runtime/installer สำหรับ `uvx` และการตรวจสอบ package แยกต่างหาก
 
 Filesystem server ให้ tools สำหรับอ่าน เขียน สร้าง ย้าย และลบไฟล์ภายใต้โฟลเดอร์ที่ระบุ อย่างไรก็ตาม การเลือกโฟลเดอร์เป็นข้อจำกัดของตัว server ไม่ใช่ Windows security sandbox: MCP package ทำงานด้วยสิทธิ์บัญชี Windows ปัจจุบัน จึงควรติดตั้งเฉพาะ package ที่เชื่อถือได้ และพิจารณาผลของ tools ก่อนเปิดใช้งาน
 
 การติดตั้ง catalog ใช้ package version แบบ pin และสั่ง npm ปิด lifecycle scripts ระบบไม่อัปเดต package ให้อัตโนมัติ การลบรายการ catalog จะถอด server ออกจาก manager ก่อน แล้วตรวจ package identity และ path ที่ DWB เป็นเจ้าของก่อนลบไฟล์ติดตั้ง
+
+## App Integrations ของแต่ละแอป
+
+ส่วน **App Integrations** แยกจาก **Official MCP Reference Servers** โดยเฉพาะ รายการเริ่มต้นประกอบด้วย **Figma, GitHub, Linear, Atlassian, Supabase, Vercel, Cloudflare, Canva** และ **CapCut** ใช้ช่องเลือกแอปเพื่อดูประเภทการเชื่อมต่อ, ความสามารถ, endpoint และคำเตือนด้านสิทธิ์ได้
+
+รายการ `OFFICIAL REMOTE` ไม่ใช่ npm package ที่ดาวน์โหลดลงเครื่อง แต่เป็น endpoint ของผู้ให้บริการซึ่งต้องยืนยัน OAuth/API หรือทำ client setup ตามคู่มือของแอป ปุ่ม **Quick Install** จะเพิ่ม remote MCP เข้าในรายการ DWB แบบปิดใช้งานก่อน จากนั้นผู้ใช้ตรวจ endpoint/สิทธิ์ แล้วเปิด **Enabled** และกด **Save** เอง ปุ่ม **คัดลอก endpoint** และ **เปิดคู่มือ** ใช้สำหรับตั้งค่า/ตรวจสอบเพิ่มเติม
+
+`CapCut` ในรายการนี้ติดป้าย `COMMUNITY LOCAL` และ `Local · uv` เพราะเป็น bridge จากชุมชน ไม่ใช่ integration ที่ยืนยันจาก ByteDance ปุ่ม **Quick Install** จะเพิ่ม local launcher `uv run --from git+...` ให้ในรายการแบบปิดใช้งานก่อน โดย `uv` จะดึง dependency เมื่อเริ่ม server ครั้งแรก จึงต้องมี `uv`, Python และ CapCut Desktop พร้อม และควรตรวจ source ก่อนเปิดใช้งานเสมอ ([repository](https://github.com/bchenner/capcut-mcp))
 
 ## ติดตั้งจาก GitHub
 

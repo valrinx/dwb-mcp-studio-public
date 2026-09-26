@@ -1,5 +1,6 @@
 ﻿param([switch]$UiTest,[string]$UiTestReport)
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'dpi-common.ps1')
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase
 Add-Type -AssemblyName System.Windows.Forms
 . (Join-Path $PSScriptRoot 'setup-common.ps1')
@@ -11,6 +12,7 @@ function Preserve-McpManagedMetadata([System.Collections.IDictionary]$Definition
   $fields=switch($ExistingServer.source){
     'catalog' {@('source','catalogId','packageName','packageVersion','installDirectory');break}
     'github' {@('source','repositoryUrl','repositoryRef','packageName','packageVersion','installDirectory');break}
+    'app' {@('source','appId','transport','url');break}
     default {@()}
   }
   foreach($field in $fields){
@@ -32,6 +34,8 @@ $script:Servers=@()
 $script:OriginalEnv=@{}
 $script:SelectedId=''
 $script:BrokerRunning=$false
+$script:Catalog=@()
+$script:AppCatalog=@()
 
 function Invoke-McpManager([string]$Action,$Payload=@{},[int]$TimeoutMs=20000){
   if(-not $script:Node){throw 'Node.js was not found. Run machine setup first.'}
@@ -99,6 +103,7 @@ function Update-ServerList($Data){
   $brokerBrush=if($script:BrokerRunning){[Windows.Media.Brushes]::MediumSeaGreen}else{[Windows.Media.Brushes]::SlateGray}
   (Find 'BrokerDot').Fill=$brokerBrush
   (Find 'BrokerDot').ToolTip=$brokerText
+  (Find 'BrokerStateLabel').Text=$brokerText
   (Find 'BrokerStatusIndicator').ToolTip=$brokerText
   [System.Windows.Automation.AutomationProperties]::SetName((Find 'BrokerDot'),$brokerText)
   (Find 'ActionStatus').Text=if($script:BrokerRunning){'บันทึกแล้วและซิงก์กับ Broker ที่กำลังทำงาน'}else{'Broker ยังไม่ทำงาน · การเปลี่ยนแปลงจะเริ่มใช้เมื่อ MCP เชื่อมต่อ'}
@@ -115,9 +120,32 @@ function Refresh-Servers{
 function Update-CatalogInfo{
   $entry=(Find 'Catalog').SelectedItem
   if(-not $entry){(Find 'CatalogInfo').Text='ยังไม่มี package ใน Catalog';return}
-  (Find 'CatalogInfo').Text=$entry.description+' '+$entry.permissionSummary
+  $officialLabel=if($entry.official){'OFFICIAL · '}else{''}
+  (Find 'CatalogInfo').Text=$officialLabel+$entry.description+' '+$entry.permissionSummary
+  (Find 'CatalogInfo').ToolTip=if($entry.sourceUrl){'แหล่งอ้างอิง: '+$entry.sourceUrl}else{$null}
   (Find 'AllowedDirectory').IsEnabled=[bool]$entry.allowedDirectoryArg
   (Find 'ChooseDirectory').IsEnabled=[bool]$entry.allowedDirectoryArg
+}
+
+function Update-AppCatalogInfo{
+  $entry=(Find 'AppCatalog').SelectedItem
+  if(-not $entry){
+    (Find 'AppCatalogInfo').Text='เลือกแอปเพื่อดูวิธีเชื่อมต่อและขอบเขตความสามารถ'
+    (Find 'AppCatalogSecurity').Text=''
+    (Find 'QuickInstallApp').IsEnabled=$false
+    return
+  }
+  $kind=if($entry.kind -eq 'official-remote'){'OFFICIAL REMOTE'}else{'COMMUNITY LOCAL'}
+  $auth=switch($entry.auth){'oauth'{'OAuth'}'api-key'{'API key'}'local-uv'{'Local · uv'}default{'Client setup'}}
+  (Find 'AppCatalogInfo').Text=$kind+' · '+$entry.name+' · '+$entry.category+"`n"+$entry.description+"`nความสามารถ: "+$entry.capabilities
+  $endpoint=if($entry.endpoint){'Endpoint: '+$entry.endpoint}else{'ไม่มี endpoint กลาง · เปิดคู่มือเพื่อทำตามขั้นตอนของแอป'}
+  $warning=if($entry.warning){' · '+$entry.warning}else{''}
+  (Find 'AppCatalogSecurity').Text='Auth: '+$auth+' · '+$endpoint+$warning
+  (Find 'AppCatalogInfo').ToolTip=if($entry.sourceUrl){'แหล่งอ้างอิง: '+$entry.sourceUrl}else{$null}
+  (Find 'CopyAppEndpoint').IsEnabled=[bool]$entry.endpoint
+  $isInstallable=($entry.kind -eq 'official-remote' -and [bool]$entry.endpoint) -or $entry.id -eq 'capcut'
+  (Find 'QuickInstallApp').IsEnabled=$isInstallable
+  (Find 'QuickInstallApp').ToolTip=if($entry.id -eq 'capcut'){'เพิ่ม CapCut local MCP ด้วย uv · ตรวจ source และติดตั้ง uv ก่อนเปิดใช้งาน'}elseif($isInstallable){'เพิ่ม remote MCP นี้ในรายการแบบปิดไว้ก่อน · ต้องเปิดใช้งานหลังตรวจสิทธิ์'}else{'แอปนี้ยังไม่มี target สำหรับ Quick Install'}
 }
 
 function Set-GitHubInstallStatus([string]$Message,[ValidateSet('info','working','success','error')][string]$State='info'){
@@ -142,6 +170,81 @@ function Refresh-Catalog{
     (Find 'Catalog').ItemsSource=$script:Catalog
     if($script:Catalog.Count -gt 0){(Find 'Catalog').SelectedIndex=0;Update-CatalogInfo}
   }catch{(Find 'CatalogInfo').Text=$_.Exception.Message}
+}
+
+function Refresh-AppCatalog{
+  try{
+    $data=Invoke-McpManager 'apps-catalog' @{}
+    $script:AppCatalog=@($data.appsCatalog)
+    (Find 'AppCatalog').ItemsSource=$script:AppCatalog
+    if($script:AppCatalog.Count -gt 0){(Find 'AppCatalog').SelectedIndex=0;Update-AppCatalogInfo}
+  }catch{
+    (Find 'AppCatalogInfo').Text='อ่าน App Integrations ไม่สำเร็จ · '+$_.Exception.Message
+    (Find 'AppCatalogSecurity').Text=''
+  }
+}
+
+function Open-AppCatalogSource{
+  $entry=(Find 'AppCatalog').SelectedItem
+  if(-not $entry){(Find 'ActionStatus').Text='เลือกแอปก่อนเปิดคู่มือ';return}
+  $url=if($entry.setupUrl){[string]$entry.setupUrl}else{[string]$entry.sourceUrl}
+  if(-not $url){(Find 'ActionStatus').Text='แอปนี้ยังไม่มีคู่มือที่ลงทะเบียนไว้';return}
+  Start-Process $url
+  (Find 'ActionStatus').Text='เปิดคู่มือ '+$entry.name+' แล้ว · ตรวจสิทธิ์และแหล่งที่มาก่อนเชื่อมต่อ'
+}
+
+function Copy-AppCatalogEndpoint{
+  $entry=(Find 'AppCatalog').SelectedItem
+  if(-not $entry -or -not $entry.endpoint){(Find 'ActionStatus').Text='แอปนี้ไม่มี endpoint กลาง · ใช้คู่มือเพื่อตั้งค่า';return}
+  [Windows.Clipboard]::SetText([string]$entry.endpoint)
+  (Find 'ActionStatus').Text='คัดลอก endpoint ของ '+$entry.name+' แล้ว · endpoint นี้ยังต้องยืนยัน '+$entry.auth
+}
+
+function Install-CatalogEntry([string]$CatalogId){
+  try{
+    $entry=@($script:Catalog | Where-Object {$_.id -eq $CatalogId}) | Select-Object -First 1
+    if(-not $entry){throw 'The selected official MCP package is not available.'}
+    $directory=([string](Find 'AllowedDirectory').Text).Trim()
+    if($entry.allowedDirectoryArg){
+      if(-not $directory){throw 'Choose an allowed directory before installing Filesystem.'}
+      $item=Get-Item -LiteralPath $directory -ErrorAction Stop
+      if(-not $item.PSIsContainer){throw 'The allowed path must be a directory.'}
+    }else{$directory=''}
+    (Find 'Catalog').SelectedItem=$entry
+    $busyNames=@('InstallCatalog','QuickInstallApp','InstallGitHub','Refresh','NewServer','SaveServer','RemoveServer')
+    $busyStates=@()
+    foreach($name in $busyNames){
+      $control=Find $name
+      if($control){$busyStates+=,[pscustomobject]@{Control=$control;WasEnabled=[bool]$control.IsEnabled};$control.IsEnabled=$false}
+    }
+    try{
+      $payload=@{catalogId=$entry.id}
+      if($directory){$payload.allowedDirectory=$directory}
+      (Find 'ActionStatus').Text='กำลังติดตั้ง '+$entry.name+'… กรุณารอสักครู่'
+      $data=Invoke-McpManager 'install' $payload 600000
+      Update-ServerList $data
+      $script:SelectedId=$entry.id;Load-Server $entry.id
+      (Find 'ActionStatus').Text='ติดตั้ง '+$entry.name+' เรียบร้อย · ปิดใช้งานอยู่ เลือก “เปิดใช้งาน” แล้วกดบันทึก'
+    }finally{foreach($state in $busyStates){$state.Control.IsEnabled=$state.WasEnabled}}
+  }catch{(Find 'ActionStatus').Text='ติดตั้ง '+$CatalogId+' ไม่สำเร็จ · '+$_.Exception.Message}
+}
+
+function Install-AppIntegration{
+  try{
+    $entry=(Find 'AppCatalog').SelectedItem
+    if(-not $entry){throw 'เลือก App Integration ก่อนติดตั้ง'}
+    if(($entry.kind -ne 'official-remote' -or -not $entry.endpoint) -and $entry.id -ne 'capcut'){throw $entry.name+' ยังไม่มี target สำหรับ Quick Install'}
+    (Find 'QuickInstallApp').IsEnabled=$false
+    (Find 'ActionStatus').Text=if($entry.id -eq 'capcut'){'กำลังเพิ่ม CapCut local MCP ด้วย uv…'}else{'กำลังเพิ่ม '+$entry.name+' remote MCP…'}
+    $data=Invoke-McpManager 'install-app' @{appId=[string]$entry.id}
+    Update-ServerList $data
+    $script:SelectedId=[string]$data.installedId
+    Load-Server $script:SelectedId
+    (Find 'ActionStatus').Text=if($entry.id -eq 'capcut'){'เพิ่ม CapCut แล้ว · ปิดใช้งานอยู่ ตรวจ source และ uv ก่อนเปิดใช้งาน'}else{'เพิ่ม '+$entry.name+' แล้ว · ปิดใช้งานอยู่ ตรวจสิทธิ์แล้วเปิดใช้งานและบันทึก'}
+  }catch{
+    $entry=(Find 'AppCatalog').SelectedItem
+    (Find 'ActionStatus').Text='Quick Install '+([string]$entry.name)+' ไม่สำเร็จ · '+$_.Exception.Message
+  }finally{Update-AppCatalogInfo}
 }
 
 function Load-Server([string]$IdValue){
@@ -174,8 +277,12 @@ function New-ServerForm{
   (Find 'Editor').BringIntoView()
 }
 
-(Find 'Refresh').Add_Click({Refresh-Servers})
+(Find 'Refresh').Add_Click({Refresh-Servers;Refresh-AppCatalog})
 (Find 'Catalog').Add_SelectionChanged({Update-CatalogInfo})
+(Find 'AppCatalog').Add_SelectionChanged({Update-AppCatalogInfo})
+(Find 'QuickInstallApp').Add_Click({Install-AppIntegration})
+(Find 'OpenAppSource').Add_Click({Open-AppCatalogSource})
+(Find 'CopyAppEndpoint').Add_Click({Copy-AppCatalogEndpoint})
 (Find 'ChooseDirectory').Add_Click({
   $dialog=New-Object System.Windows.Forms.FolderBrowserDialog
   $dialog.Description='Choose the directory this MCP server may access.'
@@ -184,22 +291,9 @@ function New-ServerForm{
   $dialog.Dispose()
 })
 (Find 'InstallCatalog').Add_Click({
-  try{
-    $entry=(Find 'Catalog').SelectedItem
-    if(-not $entry){throw 'Choose a catalog package first.'}
-    $directory=([string](Find 'AllowedDirectory').Text).Trim()
-    if($entry.allowedDirectoryArg){
-      if(-not $directory){throw 'Choose an allowed directory before installing Filesystem.'}
-      $item=Get-Item -LiteralPath $directory -ErrorAction Stop
-      if(-not $item.PSIsContainer){throw 'The allowed path must be a directory.'}
-    }
-    $payload=@{catalogId=$entry.id}
-    if($directory){$payload.allowedDirectory=$directory}
-    $data=Invoke-McpManager 'install' $payload
-    Update-ServerList $data
-    $script:SelectedId=$entry.id;Load-Server $entry.id
-    (Find 'ActionStatus').Text='Installed but disabled. Select Enabled and save when you are ready to run this server.'
-  }catch{(Find 'ActionStatus').Text=$_.Exception.Message}
+  $entry=(Find 'Catalog').SelectedItem
+  if(-not $entry){(Find 'ActionStatus').Text='Choose a catalog package first.';return}
+  Install-CatalogEntry $entry.id
 })
 (Find 'InstallGitHub').Add_Click({
   try{
@@ -214,7 +308,7 @@ function New-ServerForm{
     Set-GitHubInstallStatus 'กำลังดาวน์โหลด repo และติดตั้ง dependencies… อาจใช้เวลาหลายนาที' 'working'
     (Find 'ActionStatus').Text='กำลังติดตั้งจาก GitHub… กรุณารอสักครู่'
     $busyStates=@()
-    foreach($name in @('InstallGitHub','InstallCatalog','Refresh','NewServer','SaveServer','RemoveServer')){
+    foreach($name in @('InstallGitHub','InstallCatalog','QuickInstallApp','Refresh','NewServer','SaveServer','RemoveServer')){
       $control=Find $name
       if($control){$busyStates+=,[pscustomobject]@{Control=$control;WasEnabled=[bool]$control.IsEnabled};$control.IsEnabled=$false}
     }
@@ -238,7 +332,9 @@ function New-ServerForm{
 (Find 'SaveServer').Add_Click({
   try{
     $id=([string](Find 'Id').Text).Trim();$name=([string](Find 'Name').Text).Trim();$command=([string](Find 'Command').Text).Trim()
-    if(-not $id -or -not $name -or -not $command){throw 'Enter Server ID, name, and command.'}
+    $existingServer=@($script:Servers | Where-Object {$_.id -eq $id}) | Select-Object -First 1
+    $isRemoteApp=$existingServer -and $existingServer.source -eq 'app' -and $existingServer.transport -eq 'streamable-http'
+    if(-not $id -or -not $name -or (-not $command -and -not $isRemoteApp)){throw 'Enter Server ID, name, and command.'}
     $envMap=@{};foreach($key in $script:OriginalEnv.Keys){$envMap[$key]=$script:OriginalEnv[$key]}
     foreach($line in ([string](Find 'Environment').Text -split "`r?`n")){
       if(-not $line.Trim()){continue}
@@ -248,7 +344,6 @@ function New-ServerForm{
       if($value -ne '' -or -not $envMap.ContainsKey($key)){$envMap[$key]=$value}
     }
     $args=@([string](Find 'Args').Text -split "`r?`n" | Where-Object {$_ -ne ''})
-    $existingServer=@($script:Servers | Where-Object {$_.id -eq $id}) | Select-Object -First 1
     $next=@($script:Servers | Where-Object {$_.id -ne $id})
     $definition=@{id=$id;name=$name;command=$command;args=$args;cwd=([string](Find 'Cwd').Text).Trim();env=$envMap;enabled=[bool](Find 'Enabled').IsChecked}
     $definition=Preserve-McpManagedMetadata $definition $existingServer
@@ -266,14 +361,27 @@ function New-ServerForm{
     (Find 'ActionStatus').Text='MCP server removed.'
   }catch{(Find 'ActionStatus').Text=$_.Exception.Message}
 })
-$window.Add_ContentRendered({Refresh-Catalog;Refresh-Servers})
+$window.Add_ContentRendered({Refresh-Catalog;Refresh-AppCatalog;Refresh-Servers})
 if($UiTest){
-  foreach($name in @('Servers','Refresh','NewServer','SaveServer','RemoveServer','Enabled','Id','Name','Command','Cwd','Args','Environment','Catalog','AllowedDirectory','ChooseDirectory','InstallCatalog','CatalogInfo','GitHubRepository','InstallGitHub','GitHubStatus','GitHubStatusPanel','GitHubProgress','ActionStatus','Editor','AdvancedSettings','EditorTitle','ServerCount','EnabledCount','RunningCount','ProblemCount','BrokerStatusIndicator','BrokerDot','EmptyState')){
+  foreach($name in @('Servers','Refresh','NewServer','SaveServer','RemoveServer','Enabled','Id','Name','Command','Cwd','Args','Environment','Catalog','AllowedDirectory','ChooseDirectory','InstallCatalog','CatalogInfo','AppIntegrationsPanel','AppCatalog','AppCatalogInfo','AppCatalogSecurity','QuickInstallApp','CopyAppEndpoint','OpenAppSource','GitHubRepository','InstallGitHub','GitHubStatus','GitHubStatusPanel','GitHubProgress','ActionStatus','Editor','AdvancedSettings','EditorTitle','ServerCount','EnabledCount','RunningCount','ProblemCount','BrokerStatusIndicator','BrokerDot','BrokerStateLabel','EmptyState')){
     if(-not (Find $name)){throw "MCP Manager is missing control: $name"}
   }
   if(Find 'BrokerState'){throw 'The MCP broker status should be displayed as a dot, not a text label.'}
   $managerProbe=Invoke-McpManager 'catalog' @{}
-  if(@($managerProbe.catalog).Count -ne 1 -or $managerProbe.catalog[0].id -ne 'filesystem'){throw 'MCP Manager could not exchange a UTF-8 request with its Node helper.'}
+  $expectedQuickInstallIds=@('everything','filesystem','memory','sequential-thinking')
+  $actualQuickInstallIds=@($managerProbe.catalog | ForEach-Object {[string]$_.id})
+  if(@($managerProbe.catalog).Count -ne $expectedQuickInstallIds.Count -or ($actualQuickInstallIds -join '|') -cne ($expectedQuickInstallIds -join '|')){throw 'MCP Manager could not exchange the reference server catalog with its Node helper.'}
+  foreach($quickName in @('QuickInstallEverything','QuickInstallFilesystem','QuickInstallMemory','QuickInstallSequentialThinking')){if(Find $quickName){throw "Legacy reference Quick Install control remains: $quickName"}}
+  $appProbe=Invoke-McpManager 'apps-catalog' @{}
+  $expectedAppIds=@('figma','github','linear','atlassian','supabase','vercel','cloudflare','canva','capcut')
+  $actualAppIds=@($appProbe.appsCatalog | ForEach-Object {[string]$_.id})
+  if(@($appProbe.appsCatalog).Count -ne $expectedAppIds.Count -or ($actualAppIds -join '|') -cne ($expectedAppIds -join '|')){throw 'MCP Manager could not exchange the separate app integration catalog with its Node helper.'}
+  if((Find 'AppCatalog') -isnot [Windows.Controls.ComboBox] -or (Find 'QuickInstallApp') -isnot [Windows.Controls.Button] -or (Find 'CopyAppEndpoint') -isnot [Windows.Controls.Button] -or (Find 'OpenAppSource') -isnot [Windows.Controls.Button]){throw 'App Integrations controls are missing from the MCP Manager.'}
+  (Find 'AppCatalog').ItemsSource=@($appProbe.appsCatalog)
+  (Find 'AppCatalog').SelectedIndex=2;Update-AppCatalogInfo
+  if(-not (Find 'QuickInstallApp').IsEnabled){throw 'Official app Quick Install should be enabled for an app with a fixed remote endpoint.'}
+  (Find 'AppCatalog').SelectedIndex=8;Update-AppCatalogInfo
+  if(-not (Find 'QuickInstallApp').IsEnabled){throw 'CapCut local app Quick Install should be enabled through its uv launcher.'}
   $testData=Join-Path $env:TEMP ('dwb-mcp-manager-stdin-'+[Guid]::NewGuid().ToString('N'))
   $oldData=$env:DWB_DATA_DIR;$oldPipe=$env:DWB_BROKER_PIPE
   try{
@@ -307,6 +415,11 @@ if($UiTest){
   foreach($field in @('source','repositoryUrl','repositoryRef','packageName','packageVersion','installDirectory')){
     if($edited[$field] -ne $githubServer.$field){throw "Editing a GitHub server dropped its managed $field metadata."}
   }
+  $appServer=[pscustomobject]@{source='app';appId='linear';transport='streamable-http';url='https://mcp.linear.app/mcp'}
+  $editedApp=Preserve-McpManagedMetadata @{id='linear'} $appServer
+  foreach($field in @('source','appId','transport','url')){
+    if($editedApp[$field] -ne $appServer.$field){throw "Editing an app server dropped its managed $field metadata."}
+  }
   $uiProbeState=@{Responsive=$false}
   $uiProbeTimer=New-Object Windows.Threading.DispatcherTimer
   $uiProbeTimer.Interval=[TimeSpan]::FromMilliseconds(20)
@@ -338,15 +451,24 @@ if($UiTest){
   Update-ServerList $fixture
   if((Find 'BrokerDot').ToolTip -ne 'Broker กำลังทำงาน'){throw 'The connected broker dot is missing its status tooltip.'}
   $brokerIndicator=Find 'BrokerStatusIndicator'
-  if($brokerIndicator.Width -gt 34 -or $brokerIndicator.Height -gt 34){throw 'The MCP broker status indicator is larger than a compact dot control.'}
+  if(-not [double]::IsNaN($brokerIndicator.Width) -or $brokerIndicator.HorizontalAlignment -ne [Windows.HorizontalAlignment]::Left){throw 'The MCP broker status indicator should be an anchored inline status badge, not a floating fixed-size control.'}
+  if((Find 'BrokerStateLabel').Text -ne 'Broker กำลังทำงาน'){throw 'The MCP broker status label is not synchronized with the broker state.'}
   $rows=@((Find 'Servers').ItemsSource)
   if((Find 'ServerCount').Text -ne '3' -or (Find 'EnabledCount').Text -ne '2' -or (Find 'RunningCount').Text -ne '1' -or (Find 'ProblemCount').Text -ne '1'){throw 'MCP summary cards did not reflect the server fixture.'}
+  $textColumns=@((Find 'Servers').Columns | Where-Object {$_ -is [Windows.Controls.DataGridTextColumn]})
+  if($textColumns.Count -lt 5){throw 'MCP server table is missing its text columns.'}
+  foreach($column in $textColumns){
+    if(-not $column.ElementStyle){throw 'MCP server text columns must share an explicit aligned text style.'}
+    $vertical=@($column.ElementStyle.Setters | Where-Object {$_.Property.Name -eq 'VerticalAlignment'})
+    $trimming=@($column.ElementStyle.Setters | Where-Object {$_.Property.Name -eq 'TextTrimming'})
+    if(-not $vertical -or -not $trimming){throw 'MCP server text columns must center their text and trim long values within the cell.'}
+  }
   if($rows[0].State -ne 'กำลังทำงาน' -or $rows[1].State -ne 'ต้องตรวจสอบ' -or $rows[2].State -ne 'ปิดใช้งาน'){throw 'MCP server status labels were not mapped to their user-facing states.'}
   $statusColumn=@((Find 'Servers').Columns | Where-Object {$_.Header -eq 'สถานะ'}) | Select-Object -First 1
+  if(-not $statusColumn.CellStyle){throw 'MCP server status column must define its own cell alignment instead of relying on the DataGrid default.'}
   $statusBadge=$statusColumn.CellTemplate.LoadContent()
-  if($statusBadge.VerticalAlignment -ne [Windows.VerticalAlignment]::Center -or $statusBadge.MinWidth -gt 0){throw 'MCP server status badge should be compact and vertically centered inside its cell.'}
-  $statusStack=$statusBadge.Child
-  if($statusStack -isnot [Windows.Controls.StackPanel]){throw 'MCP server status badge should group its dot and label horizontally.'}
+  if($statusBadge -isnot [Windows.Controls.StackPanel] -or $statusBadge.Orientation -ne [Windows.Controls.Orientation]::Horizontal -or $statusBadge.VerticalAlignment -ne [Windows.VerticalAlignment]::Center){throw 'MCP server status should be inline content, not a floating badge.'}
+  $statusStack=$statusBadge
   $statusDot=@($statusStack.Children | Where-Object {$_ -is [Windows.Shapes.Ellipse]}) | Select-Object -First 1
   $statusLabel=@($statusStack.Children | Where-Object {$_ -is [Windows.Controls.TextBlock]}) | Select-Object -First 1
   if(-not $statusDot -or -not $statusLabel -or $statusLabel.FontSize -lt 11){throw 'MCP server status badge should expose a visible dot and readable label.'}
@@ -372,7 +494,7 @@ if($UiTest){
   $editorTop=(Find 'Editor').TransformToAncestor($scroll).Transform([Windows.Point]::new(0,0)).Y
   if($editorTop -lt 0 -or $editorTop -ge $scroll.ViewportHeight){throw 'Selecting a server did not bring its editor into view.'}
   $previousBottom=[double]::NegativeInfinity
-  foreach($name in @('CatalogPanel','SummaryCards','ServersPanel','Editor','FooterPanel')){
+  foreach($name in @('CatalogPanel','AppIntegrationsPanel','SummaryCards','ServersPanel','Editor','FooterPanel')){
     $region=Find $name
     if(-not $region){throw "The MCP manager is missing its $name layout region."}
     $bounds=$region.TransformToAncestor($scroll).TransformBounds([Windows.Rect]::new(0,0,$region.ActualWidth,$region.ActualHeight))
@@ -387,6 +509,6 @@ if($UiTest){
   if($footerBottom -gt $scroll.ViewportHeight){throw 'The MCP manager footer is not reachable by scrolling on a short display.'}
   Fit-McpManagerWindow ([Windows.Rect]::new(0,0,900,600))
   if($window.Width -gt 900 -or $window.Height -gt 600 -or $window.MinWidth -gt 900 -or $window.MinHeight -gt 600){throw 'The MCP manager window does not fit within the available display area.'}
-  if($UiTestReport){[IO.File]::WriteAllText($UiTestReport,'PASS: MCP Manager UI behavior: servers=3; enabled=2; running=1; issues=1; UTF-8 helper round-trip=verified; package selector=custom; broker status=dot-only; empty=visible; scroll=available; GitHub feedback=visible; progress=shown; window=fitted; layout=nonoverlapping')}
+  if($UiTestReport){[IO.File]::WriteAllText($UiTestReport,'PASS: MCP Manager UI behavior: servers=3; enabled=2; running=1; issues=1; UTF-8 helper round-trip=verified; reference catalog=4; app quick install=remote+local; app integrations=9; package selector=custom; broker status=dot-only; empty=visible; scroll=available; GitHub feedback=visible; progress=shown; window=fitted; layout=nonoverlapping')}
   $window.Close()
 }else{$null=$window.ShowDialog()}

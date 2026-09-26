@@ -1,5 +1,6 @@
 ﻿param([string]$PreviewPath, [string]$TestRequestFile)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'dpi-common.ps1')
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase
 . (Join-Path $PSScriptRoot 'tunnel-common.ps1')
 $reader = [Xml.XmlReader]::Create([IO.StringReader]::new([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'tunnel-setup.xaml'))))

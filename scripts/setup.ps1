@@ -1,5 +1,6 @@
 ﻿param([string]$PreviewPath, [string]$TestRequestFile, [switch]$ConfigureOnly)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'dpi-common.ps1')
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System.Windows.Forms
 . (Join-Path $PSScriptRoot 'setup-common.ps1')
 . (Join-Path $PSScriptRoot 'external-common.ps1')

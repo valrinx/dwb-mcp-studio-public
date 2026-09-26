@@ -12,6 +12,40 @@ try {
   // The RED assertion identifies the missing staged installer.
 }
 
+test('lists the official MCP reference servers in the package catalog', () => {
+  assert.ok(
+    installerModule?.ExternalMcpInstaller,
+    'ExternalMcpInstaller export is not implemented',
+  );
+  const installer = new installerModule.ExternalMcpInstaller({ rootDir: tmpdir() });
+  const catalog = installer.listCatalog();
+  assert.deepEqual(
+    catalog.map((entry: any) => [
+      entry.id,
+      entry.packageName,
+      entry.version,
+      entry.allowedDirectoryArg,
+    ]),
+    [
+      ['everything', '@modelcontextprotocol/server-everything', '2026.8.31', false],
+      ['filesystem', '@modelcontextprotocol/server-filesystem', '2026.8.31', true],
+      ['memory', '@modelcontextprotocol/server-memory', '2026.8.31', false],
+      [
+        'sequential-thinking',
+        '@modelcontextprotocol/server-sequential-thinking',
+        '2026.8.31',
+        false,
+      ],
+    ],
+  );
+  assert.ok(catalog.every((entry: any) => entry.official === true));
+  assert.ok(
+    catalog.every((entry: any) =>
+      entry.sourceUrl.includes('github.com/modelcontextprotocol/servers'),
+    ),
+  );
+});
+
 test('stages a catalog package, verifies its identity, and activates it disabled', async () => {
   assert.ok(
     installerModule?.ExternalMcpInstaller,
@@ -145,14 +179,7 @@ test('installs a GitHub MCP repository and selects its matching executable autom
     assert.equal(installed.packageName, 'raven-roblox-mcp');
     assert.equal(installed.packageVersion, '0.5.0');
     assert.equal(installed.command, process.execPath);
-    assert.deepEqual(installed.args, [
-      join(
-        installed.installDirectory,
-        'dist',
-        'src',
-        'cli.js',
-      ),
-    ]);
+    assert.deepEqual(installed.args, [join(installed.installDirectory, 'dist', 'src', 'cli.js')]);
     assert.equal(installed.enabled, false);
     assert.equal(existsSync(installed.args[0]), true);
   } finally {

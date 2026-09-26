@@ -1,5 +1,6 @@
 ﻿param([string]$TestReport,[string]$UiTestReport,[switch]$Startup)
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'dpi-common.ps1')
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System.Windows.Forms,System.Drawing
 . (Join-Path $PSScriptRoot 'tunnel-common.ps1')
 . (Join-Path $PSScriptRoot 'preferences-common.ps1')
@@ -71,7 +72,7 @@ function global:Show-DwbWindow($Window){
   $Window.Show()
   if($global:DwbShell.StartupPending){
     $global:DwbShell.StartupPending=$false
-    if($Window.FindName('StartMcp')){
+    if($Window.FindName('McpToggle') -or $Window.FindName('StartMcp')){
       Hide-DwbWindow
       if($global:DwbShell.Preferences.connectOnStartup){
         try{

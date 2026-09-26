@@ -1,11 +1,30 @@
 ﻿param([string]$PreviewPath,[string]$SnapshotFile)
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'dpi-common.ps1')
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase
 . (Join-Path $PSScriptRoot 'tunnel-common.ps1')
 $reader=[Xml.XmlReader]::Create([IO.StringReader]::new([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'dashboard.xaml'))))
 try{$window=[Windows.Markup.XamlReader]::Load($reader)}finally{$reader.Dispose()}
 if($global:DwbShell){Register-DwbWindow $window}
 function Find([string]$Name){return $window.FindName($Name)}
+function Set-DashboardRoundedClip($Element,[double]$Radius=11){
+  if(-not $Element){return}
+  $update={
+    param($sender,$eventArgs)
+    if($sender.ActualWidth -le 0 -or $sender.ActualHeight -le 0){return}
+    $clip=$sender.Clip
+    if(-not ($clip -is [Windows.Media.RectangleGeometry])){
+      $clip=New-Object Windows.Media.RectangleGeometry
+      $sender.Clip=$clip
+    }
+    $clip.Rect=[Windows.Rect]::new(0,0,[double]$sender.ActualWidth,[double]$sender.ActualHeight)
+    $clip.RadiusX=$Radius
+    $clip.RadiusY=$Radius
+  }.GetNewClosure()
+  $Element.Add_SizeChanged($update)
+  & $update $Element $null
+}
+foreach($name in @('Sessions','Agents','Tasks','Events')){Set-DashboardRoundedClip (Find $name)}
 $logo=[Windows.Media.Imaging.BitmapImage]::new([Uri][IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\assets\n3zuui-mark.png')))
 (Find 'Logo').Source=$logo; $window.Icon=$logo
 try{(Find 'Version').Text=(Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\package.json') -Raw | ConvertFrom-Json).version}catch{}
@@ -129,7 +148,10 @@ function Finish-Probe{
 (Find 'Events').Add_SelectionChanged({$selected=(Find 'Events').SelectedItem;if($selected){(Find 'Detail').Text=$selected.Time+' · '+$selected.Event+"`n"+$selected.Detail}})
 $timer=New-Object Windows.Threading.DispatcherTimer
 $timer.Interval=[TimeSpan]::FromMilliseconds(200)
-$timer.Add_Tick({Finish-Probe;if(([DateTime]::UtcNow-$script:LastProbe).TotalSeconds -ge 3){Begin-Probe}})
+$timer.Add_Tick({
+  Finish-Probe
+  if(([DateTime]::UtcNow-$script:LastProbe).TotalSeconds -ge 3){Begin-Probe}
+})
 $window.Add_Closed({$timer.Stop();if($script:Probe){if(-not $script:Probe.HasExited){$script:Probe.Kill()};$script:Probe.Dispose();$script:Probe=$null}})
 if($PreviewPath){
   $window.ShowInTaskbar=$false;$window.WindowStartupLocation='Manual';$window.Left=-20000;$window.Top=-20000

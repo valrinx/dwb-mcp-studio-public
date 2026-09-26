@@ -2,7 +2,7 @@
 
 [MCP Server Manager: คู่มือใช้งาน](docs/MCP-SERVER-MANAGER-TH.md) · [แผนการพัฒนา](docs/MCP-MANAGER-PLAN-TH.md)
 
-Windows Beta · 0.1.0-beta.21
+Windows Beta · 0.1.0-beta.22
 
 ## ดาวน์โหลดและเริ่มใช้
 

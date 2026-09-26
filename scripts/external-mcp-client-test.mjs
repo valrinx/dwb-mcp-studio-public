@@ -54,7 +54,7 @@ test('offline server management helper persists definitions without exposing env
   }
 });
 
-test('catalog action exposes the pinned filesystem server for the manager UI', async () => {
+test('catalog action exposes the pinned official reference servers for the manager UI', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dwb-external-mcp-catalog-'));
   try {
     const result = await invoke(
@@ -69,6 +69,20 @@ test('catalog action exposes the pinned filesystem server for the manager UI', a
     assert.equal(result.code, 0, result.stderr);
     assert.deepEqual(JSON.parse(result.stdout).catalog, [
       {
+        id: 'everything',
+        name: 'Everything',
+        description:
+          'Official reference server for testing tools, resources, prompts, and notifications.',
+        packageName: '@modelcontextprotocol/server-everything',
+        version: '2026.8.31',
+        entryPoint: 'dist/index.js',
+        allowedDirectoryArg: false,
+        permissionSummary:
+          'Reference/test server that exposes demonstration MCP capabilities; do not enable it for untrusted workspaces.',
+        official: true,
+        sourceUrl: 'https://github.com/modelcontextprotocol/servers/tree/main/src/everything',
+      },
+      {
         id: 'filesystem',
         name: 'Filesystem',
         description: 'Browse and edit files within a directory you explicitly select.',
@@ -78,8 +92,136 @@ test('catalog action exposes the pinned filesystem server for the manager UI', a
         allowedDirectoryArg: true,
         permissionSummary:
           'Can read, write, create, move, and delete files under the selected directory. Runs with this Windows account\u2019s permissions.',
+        official: true,
+        sourceUrl: 'https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem',
+      },
+      {
+        id: 'memory',
+        name: 'Memory',
+        description:
+          'Official knowledge-graph memory server for persistent context across sessions.',
+        packageName: '@modelcontextprotocol/server-memory',
+        version: '2026.8.31',
+        entryPoint: 'dist/index.js',
+        allowedDirectoryArg: false,
+        permissionSummary:
+          'Stores MCP memory data in the managed installation directory and exposes it to connected agents.',
+        official: true,
+        sourceUrl: 'https://github.com/modelcontextprotocol/servers/tree/main/src/memory',
+      },
+      {
+        id: 'sequential-thinking',
+        name: 'Sequential Thinking',
+        description:
+          'Official structured-thinking server for reflective step-by-step problem solving.',
+        packageName: '@modelcontextprotocol/server-sequential-thinking',
+        version: '2026.8.31',
+        entryPoint: 'dist/index.js',
+        allowedDirectoryArg: false,
+        permissionSummary:
+          'Provides a reasoning workflow tool; it does not read or write files by itself.',
+        official: true,
+        sourceUrl:
+          'https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking',
       },
     ]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('apps-catalog action exposes app integrations separately from package installs', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dwb-external-app-catalog-'));
+  try {
+    const result = await invoke(
+      'apps-catalog',
+      {},
+      {
+        ...process.env,
+        DWB_DATA_DIR: root,
+        DWB_BROKER_PIPE: `\\\\.\\pipe\\dwb-no-app-catalog-broker-${process.pid}`,
+      },
+    );
+    assert.equal(result.code, 0, result.stderr);
+    const catalog = JSON.parse(result.stdout).appsCatalog;
+    assert.deepEqual(
+      catalog.map((entry) => entry.id),
+      [
+        'figma',
+        'github',
+        'linear',
+        'atlassian',
+        'supabase',
+        'vercel',
+        'cloudflare',
+        'canva',
+        'capcut',
+      ],
+    );
+    assert.equal(
+      catalog.some((entry) => entry.id === 'filesystem'),
+      false,
+    );
+    assert.equal(catalog.find((entry) => entry.id === 'capcut').kind, 'community-local');
+    assert.equal(
+      catalog.find((entry) => entry.id === 'linear').endpoint,
+      'https://mcp.linear.app/mcp',
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('offline app quick install registers an official remote server disabled', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dwb-external-app-install-'));
+  try {
+    const result = await invoke(
+      'install-app',
+      { appId: 'linear' },
+      {
+        ...process.env,
+        DWB_DATA_DIR: root,
+        DWB_BROKER_PIPE: `\\\\.\\pipe\\dwb-no-app-install-broker-${process.pid}`,
+      },
+    );
+    assert.equal(result.code, 0, result.stderr);
+    const installed = JSON.parse(result.stdout).servers[0];
+    assert.equal(installed.id, 'linear');
+    assert.equal(installed.source, 'app');
+    assert.equal(installed.transport, 'streamable-http');
+    assert.equal(installed.url, 'https://mcp.linear.app/mcp');
+    assert.equal(installed.enabled, false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('offline app quick install registers the CapCut local uv launcher disabled', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dwb-external-capcut-install-'));
+  try {
+    const result = await invoke(
+      'install-app',
+      { appId: 'capcut' },
+      {
+        ...process.env,
+        DWB_DATA_DIR: root,
+        DWB_BROKER_PIPE: `\\\\.\\pipe\\dwb-no-capcut-install-broker-${process.pid}`,
+      },
+    );
+    assert.equal(result.code, 0, result.stderr);
+    const installed = JSON.parse(result.stdout).servers[0];
+    assert.equal(installed.id, 'capcut');
+    assert.equal(installed.source, 'app');
+    assert.equal(installed.command, 'uv');
+    assert.deepEqual(installed.args, [
+      'run',
+      '--from',
+      'git+https://github.com/bchenner/capcut-mcp',
+      'python',
+      '-m',
+      'capcut_mcp.server',
+    ]);
+    assert.equal(installed.enabled, false);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
