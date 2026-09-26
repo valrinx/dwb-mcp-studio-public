@@ -2,7 +2,7 @@
 
 [MCP Server Manager: คู่มือใช้งาน](docs/MCP-SERVER-MANAGER-TH.md) · [แผนการพัฒนา](docs/MCP-MANAGER-PLAN-TH.md)
 
-Windows Beta · 0.1.0-beta.20
+Windows Beta · 0.1.0-beta.21
 
 ## ดาวน์โหลดและเริ่มใช้
 
@@ -12,7 +12,7 @@ Windows Beta · 0.1.0-beta.20
 
 Setup เตรียมโปรแกรมจาก source ให้เองเมื่อยังไม่มี `dist` และดาวน์โหลด Desktop Commander กับ tunnel-client ลง `external` ของโฟลเดอร์นี้ หลังติดตั้ง กรอก **Tunnel ID + API key → Start MCP** ต้องมี Node.js 22.16 ขึ้นไปพร้อม npm
 
-โค้ด DWB ใช้ [MIT License](LICENSE) ส่วนโปรแกรมภายนอกมี license ของเจ้าของตาม [THIRD-PARTY](THIRD-PARTY.md) หากจะเผยแพร่ repository ดู [แนวทางเผยแพร่ผ่าน Git](docs/PUBLISHING.md)
+โค้ดและแบรนด์ต้นฉบับของ N3zuui Studio อยู่ภายใต้ [N3zuui Studio Proprietary License](LICENSE) ส่วนโค้ดที่สืบทอดจาก upstream ต้องรักษา [MIT notice เดิม](LICENSE-UPSTREAM-MIT) และโปรแกรมภายนอกมี license ของเจ้าของตาม [THIRD-PARTY](THIRD-PARTY.md) หากจะเผยแพร่ repository ดู [แนวทางเผยแพร่ผ่าน Git](docs/PUBLISHING.md)
 
 ## เกี่ยวกับโปรแกรม
 

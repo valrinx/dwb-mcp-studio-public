@@ -8,7 +8,7 @@ $Name = "dwb-mcp-studio-core-$($Package.version)-$Flavor"
 $Stage = Join-Path $ReleaseRoot ($Name + '-' + [Guid]::NewGuid().ToString('N').Substring(0,8))
 New-Item -ItemType Directory -Path $Stage -Force | Out-Null
 # Explicit allowlist: never copy node_modules, personal config, logs, runtime or data.
-foreach ($File in @('package.json','package-lock.json','tsconfig.json','README.md','LICENSE','THIRD-PARTY.md','DWB MCP Studio.exe','.gitignore','.gitattributes','.prettierignore','.prettierrc.json','.editorconfig')) {
+foreach ($File in @('package.json','package-lock.json','tsconfig.json','README.md','LICENSE','LICENSE-UPSTREAM-MIT','THIRD-PARTY.md','DWB MCP Studio.exe','.gitignore','.gitattributes','.prettierignore','.prettierrc.json','.editorconfig')) {
   Copy-Item -LiteralPath (Join-Path $ProjectRoot $File) -Destination $Stage
 }
 foreach ($Directory in @('src','scripts','docs','assets')) {

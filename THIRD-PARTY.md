@@ -1,6 +1,6 @@
 # Distribution boundary
 
-The release contains DWB's core source, compiled JavaScript, setup scripts, tests and documentation. DWB code is covered by the included MIT LICENSE.
+The release contains N3zuui Studio's rebranded source, compiled JavaScript, setup scripts, tests and documentation. Original N3zuui Studio materials are covered by LICENSE. Upstream-derived portions retain the notice in LICENSE-UPSTREAM-MIT.
 
 The release does not contain Node.js, Desktop Commander, Desktop Commander Remote, OpenAI tunnel, other tunnel clients, third-party binaries, node_modules, accounts, API keys or runtime data. It is not an official release of those projects and does not grant access to their services.
 
@@ -16,7 +16,7 @@ The DWB worker loader redirects the supported external worker's configuration-ho
 
 | Component                 | Version reviewed       | License                                                                                                     | Delivery                                      |
 | ------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| DWB source and launcher   | 0.1.0-beta.15          | [MIT](LICENSE)                                                                                              | Included in this repository and release       |
+| N3zuui source and launcher | 0.1.0-beta.21         | [N3zuui Proprietary License](LICENSE) + [upstream MIT notice](LICENSE-UPSTREAM-MIT)                         | Included in this repository and release       |
 | Desktop Commander         | 0.2.50                 | [MIT, upstream license](https://raw.githubusercontent.com/wonderwhy-er/DesktopCommanderMCP/v0.2.50/LICENSE) | Downloaded by Setup from npm                  |
 | OpenAI tunnel-client      | 0.0.11                 | [Apache-2.0, upstream license](https://raw.githubusercontent.com/openai/tunnel-client/v0.0.11/LICENSE)      | Downloaded by Setup from the upstream release |
 | MCP SDK / server / client | 1.30.0 / 2.0.0 / 2.0.0 | MIT (installed package licenses and lockfile)                                                               | Downloaded by npm                             |
@@ -26,6 +26,6 @@ The DWB worker loader redirects the supported external worker's configuration-ho
 
 The reviewed lockfile declares MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause and ISC licenses across its 150 dependency entries. None has a missing license field. This is a metadata inventory, not an independent provenance audit of every dependency. Dependencies remain separate downloads; DWB compilation does not bundle their implementations into the release JavaScript.
 
-Keep DWB's copyright and MIT license with copies of DWB. Keep upstream license and attribution files with downloaded components. If redistributing those components later, review their redistribution conditions separately, including any applicable Apache NOTICE files and notices for modified files. Do not redistribute a configured installation folder as a DWB release.
+Keep N3zuui's proprietary license and the upstream license/attribution files with copies of this project. If redistributing upstream components later, review their redistribution conditions separately, including any applicable Apache NOTICE files and notices for modified files. Do not redistribute a configured installation folder as a N3zuui release.
 
 The DWB logo supplied by the project owner is used in the launcher and documentation. This review relies on the owner's rights to that asset and the DWB source; it does not independently establish their provenance. An open-source software license does not grant access to a hosted service or permission to imply endorsement by its operator. Users supply their own authorized service credentials.
