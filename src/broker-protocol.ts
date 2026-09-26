@@ -31,6 +31,7 @@ export type BrokerRequest = {
     | 'read_resource'
     | 'ping'
     | 'inspect'
+    | 'external_mcp_manage'
     | 'shutdown'
     | 'cancel'
     | 'prepare_upgrade';

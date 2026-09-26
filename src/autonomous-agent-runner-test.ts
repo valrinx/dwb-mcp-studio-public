@@ -80,6 +80,9 @@ test('builds a local Codex worker command with the DWB MCP server', () => {
   assert.match(command.prompt, /planner/);
   assert.match(command.prompt, /requirements-analysis/);
   assert.match(command.prompt, /wait/);
+  assert.match(command.prompt, /autonomous worker session/i);
+  assert.match(command.prompt, /cross-chat team/i);
+  assert.match(command.prompt, /DWB broker tools for all cross-agent communication/i);
 });
 
 test('starts one autonomous worker for a queued task and does not duplicate it', () => {

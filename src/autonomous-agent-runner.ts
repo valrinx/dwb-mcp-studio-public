@@ -22,6 +22,7 @@ export type AutonomousAgentSnapshot = {
     workspaceId: string;
     title: string;
     description: string;
+    targetAgentId?: string | null;
     requiredRole: string | null;
     requiredCapabilities: string[];
     priority: number;
@@ -118,7 +119,10 @@ function roleMatch(required: string | null, available: string | null): boolean {
 function workerPrompt(profile: AutonomousAgentProfile): string {
   const capabilities = profile.capabilities.length ? profile.capabilities.join(', ') : '(none)';
   return [
-    'You are an autonomous worker managed by DWB MCP Studio.',
+    'You are an autonomous worker session managed by DWB MCP Studio.',
+    'You may be one role in a cross-chat team. The Main Agent coordinates the work, while DWB routes durable assignments, handoffs, and direct messages across registered agent sessions.',
+    'Do not create, fork, open, or send work to another ChatGPT chat yourself.',
+    'Use DWB broker tools for all cross-agent communication and report task results through the assigned workflow.',
     `Agent name: ${profile.name}`,
     `Agent role: ${profile.role}`,
     `Agent capabilities: ${capabilities}`,
@@ -207,6 +211,7 @@ export class AutonomousAgentSupervisor {
       .filter(
         (task) =>
           task.status === 'queued' &&
+          !text(task.targetAgentId) &&
           (task.requiredRole !== null || task.requiredCapabilities.length > 0),
       )
       .sort((left, right) => right.priority - left.priority || left.updatedAt.localeCompare(right.updatedAt));

@@ -54,6 +54,7 @@ export type TaskView = {
   workspaceId: string;
   title: string;
   description: string;
+  targetAgentId: string | null;
   requiredRole: string | null;
   requiredCapabilities: string[];
   priority: number;
@@ -82,6 +83,7 @@ type AgentInput = { name: unknown; role?: unknown; capabilities?: unknown };
 type TaskInput = {
   title: unknown;
   description?: unknown;
+  targetAgentId?: unknown;
   fileScopes?: unknown;
   dependsOn?: unknown;
   requiredRole?: unknown;
@@ -197,6 +199,7 @@ export class AgentTaskStore {
         workspace_id TEXT NOT NULL,
         title TEXT NOT NULL,
         description TEXT NOT NULL,
+        target_agent_id TEXT,
         required_role TEXT,
         required_capabilities_json TEXT NOT NULL DEFAULT '[]',
         priority INTEGER NOT NULL DEFAULT 0,
@@ -212,6 +215,7 @@ export class AgentTaskStore {
       )
     `);
     for (const column of [
+      'ALTER TABLE workspace_tasks ADD COLUMN target_agent_id TEXT',
       'ALTER TABLE workspace_tasks ADD COLUMN required_role TEXT',
       "ALTER TABLE workspace_tasks ADD COLUMN required_capabilities_json TEXT NOT NULL DEFAULT '[]'",
       'ALTER TABLE workspace_tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0',
@@ -289,6 +293,7 @@ export class AgentTaskStore {
       workspaceId: String(row.workspace_id),
       title: String(row.title),
       description: String(row.description),
+      targetAgentId: row.target_agent_id == null ? null : String(row.target_agent_id),
       requiredRole: row.required_role == null ? null : String(row.required_role),
       requiredCapabilities: parseJson<string[]>(row.required_capabilities_json, []),
       priority: Number(row.priority ?? 0),
@@ -608,12 +613,13 @@ export class AgentTaskStore {
       const now = new Date().toISOString();
       const id = `task_${randomUUID().slice(0, 8)}`;
       this.db.run(
-        'INSERT INTO workspace_tasks(id,workspace_id,title,description,required_role,required_capabilities_json,priority,status,assigned_agent_id,file_scopes_json,depends_on_json,result_json,handoff_json,created_at,updated_at,completed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO workspace_tasks(id,workspace_id,title,description,target_agent_id,required_role,required_capabilities_json,priority,status,assigned_agent_id,file_scopes_json,depends_on_json,result_json,handoff_json,created_at,updated_at,completed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         [
           id,
           workspaceId,
           title,
           description,
+          text(input.targetAgentId) || null,
           requiredRole,
           JSON.stringify(requiredCapabilities),
           priority,
@@ -894,7 +900,11 @@ export class AgentTaskStore {
     return this.messageView(this.messageRow(id));
   }
 
-  dispatchTask(taskId: string, requesterAgentId?: string | null): TaskView {
+  dispatchTask(
+    taskId: string,
+    requesterAgentId?: string | null,
+    targetAgentId?: string | null,
+  ): TaskView {
     const row = this.taskRow(taskId);
     if (!row) throw new Error('Unknown task.');
     if (String(row.status) !== 'queued' || row.assigned_agent_id)
@@ -907,9 +917,12 @@ export class AgentTaskStore {
     const requiredCapabilities = parseJson<string[]>(row.required_capabilities_json, []).map(
       (item) => item.toLocaleLowerCase(),
     );
+    const requestedTarget = text(targetAgentId) || text(row.target_agent_id);
     const candidates = this.db.query<any>(
-      "SELECT * FROM workspace_agents WHERE workspace_id=? AND status='active' ORDER BY last_seen_at DESC,created_at,id",
-      [String(row.workspace_id)],
+      requestedTarget
+        ? "SELECT * FROM workspace_agents WHERE workspace_id=? AND status='active' AND id=? ORDER BY last_seen_at DESC,created_at,id"
+        : "SELECT * FROM workspace_agents WHERE workspace_id=? AND status='active' ORDER BY last_seen_at DESC,created_at,id",
+      requestedTarget ? [String(row.workspace_id), requestedTarget] : [String(row.workspace_id)],
     );
     for (const candidate of candidates) {
       const role = candidate.role == null ? '' : String(candidate.role).toLocaleLowerCase();
@@ -935,6 +948,10 @@ export class AgentTaskStore {
         this.createTaskAssignmentMessage(assigned, requesterAgentId ?? null);
       return assigned;
     }
+    if (requestedTarget)
+      throw new Error(
+        `DWB_TASK_TARGET_NOT_AVAILABLE: agent ${requestedTarget} is not an eligible active target for ${taskId}.`,
+      );
     throw new Error(
       `DWB_TASK_NO_AGENT: no available active agent matches task role/capabilities for ${taskId}.`,
     );
@@ -953,6 +970,7 @@ export class AgentTaskStore {
         const message = error instanceof Error ? error.message : String(error);
         if (
           !message.startsWith('DWB_TASK_NO_AGENT:') &&
+          !message.startsWith('DWB_TASK_TARGET_NOT_AVAILABLE:') &&
           !message.startsWith('DWB_TASK_SCOPE_CONFLICT:') &&
           !message.startsWith('Task dependency is not complete:')
         )
@@ -975,6 +993,11 @@ export class AgentTaskStore {
       const row = this.taskRow(taskId);
       if (!row) throw new Error('Unknown task.');
       const agent = this.requireAgent(agentId, String(row.workspace_id));
+      const targetAgentId = text(row.target_agent_id);
+      if (targetAgentId && targetAgentId !== agent.id)
+        throw new Error(
+          `DWB_TASK_TARGET_NOT_AVAILABLE: task ${taskId} is reserved for agent ${targetAgentId}.`,
+        );
       if (String(row.status) !== 'queued' || row.assigned_agent_id)
         throw new Error('Task is not available to claim.');
       const dependencies = parseJson<string[]>(row.depends_on_json, []);

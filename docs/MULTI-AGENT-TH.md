@@ -1,6 +1,7 @@
-# ทำงานหลาย Agent ใน Workspace เดียว
+# ทำงานหลาย Agent ข้ามแชทใน Workspace เดียว
 
 DWB รองรับการให้ MCP session หลายตัวทำงานใน workspace เดียวกัน โดยมี task board กลางใน SQLite สำหรับแบ่งงานและจองขอบเขตไฟล์
+Main Agent, Planner, Coder, Tester และ Reviewer สามารถอยู่คนละ ChatGPT chat แต่ bind workspace เดียวกันได้ Broker จะส่งงาน, handoff และข้อความข้าม session ให้เอง โดยไม่ต้องให้ agent เปิดแชทหรือส่งข้อความด้วยวิธีอื่น
 
 ## วิธีใช้
 
@@ -38,7 +39,20 @@ DWB รองรับการให้ MCP session หลายตัวทำ
 }
 ```
 
-`delegate` จะสร้าง task, หา worker ที่ตรง role/capability, claim งาน และส่ง `task_assigned` ให้ worker ทันที ถ้ายังไม่มี worker ที่พร้อม งานจะค้างเป็น `queued` แล้ว broker จะลอง dispatch ใหม่เมื่อ worker เชื่อมต่อหรือเมื่อมีเหตุการณ์ที่ทำให้งานพร้อม เช่น release, reopen หรือ dependency เสร็จ ไม่ต้องรอ heartbeat รอบถัดไป หากเปิด `autonomousAgents` ไว้ broker จะเปิด Local Codex worker ให้ role ที่ต้องการเอง แล้ว worker จะ bind workspace, register และรอรับงานโดยไม่ต้องเปิดแชท worker แยก
+`delegate` จะสร้าง task, หา worker ที่ตรง role/capability, claim งาน และส่ง `task_assigned` ให้ worker ทันที ถ้ายังไม่มี worker ที่พร้อม งานจะค้างเป็น `queued` แล้ว broker จะลอง dispatch ใหม่เมื่อ worker เชื่อมต่อหรือเมื่อมีเหตุการณ์ที่ทำให้งานพร้อม เช่น release, reopen หรือ dependency เสร็จ ไม่ต้องรอ heartbeat รอบถัดไป หากเปิด `autonomousAgents` ไว้ broker จะเปิด Local Codex worker เป็น fallback ให้ role ที่ต้องการเอง; ถ้าต้องการให้เป็นแชท Planner/Coder/Tester/Reviewer ที่เห็นใน sidebar ให้เปิดแชทนั้นไว้และ register agent ใน workspace เดียวกันก่อน
+ถ้าต้องการส่งตรงไปยังแชทใด ให้เรียก `dwb_agent action=list` ดู `id` ของ agent แล้วใส่ `to_agent_id` ใน `delegate` หรือ `dispatch`:
+
+```json
+{
+  "action": "delegate",
+  "title": "แก้ backend",
+  "description": "แก้เฉพาะส่วน API และรายงานผลกลับมา",
+  "required_role": "coder",
+  "to_agent_id": "agent_1234abcd"
+}
+```
+
+งานจะเข้าคิวของ session ในแชทเป้าหมายและมี notification `task_assigned`; ถ้าแชทนั้นยังไม่เชื่อมต่อ ข้อความจะค้างใน inbox จนกว่าแชทจะกลับมาเชื่อมต่อ หากเปิด `autonomousAgents` broker จึงค่อยสร้าง local worker เป็นทางเลือกเมื่อไม่มี agent ที่พร้อม
 
 4. ถ้าต้องการแยกขั้นตอนเอง สามารถสร้าง task พร้อมขอบเขตไฟล์แบบ relative path หรือ glob:
 
@@ -120,7 +134,7 @@ broker จะส่ง `handoff_ack` กลับไปยัง Agent ต้น
 worker A complete → worker B task_handoff → worker B complete → main agent
 ```
 
-การส่งข้อความ, notification และการปลุก `wait` เป็นอัตโนมัติที่ broker เมื่อ MCP session ยังเชื่อมอยู่ broker จะคืน agent ที่ถูกพักกลับเป็น `active` ก่อน dispatch งานค้างให้เอง และ DWB client จะ reconnect broker เบื้องหลังพร้อม session เดิมเมื่อ broker ถูก restart โดยไม่ต้องรอ tool call ใหม่ หาก host สร้าง MCP session ใหม่แต่ส่ง logical chat context เดิมกลับมา การ bind workspace จะ rebind agent เดิมให้เองด้วย จึงไม่ต้อง register ซ้ำ หาก host ปิด session หลังจบคำตอบและต้องการให้ทำงานต่อโดยไม่เปิดแชทใหม่ ให้เปิด autonomous mode; broker จะใช้ `codex exec` เป็น worker process แยกและเชื่อม DWB MCP โดยตรง
+การส่งข้อความ, notification และการปลุก `wait` เป็นอัตโนมัติที่ broker เมื่อ MCP session ยังเชื่อมอยู่ broker จะคืน agent ที่ถูกพักกลับเป็น `active` ก่อน dispatch งานค้างให้เอง และ DWB client จะ reconnect broker เบื้องหลังพร้อม session เดิมเมื่อ broker ถูก restart โดยไม่ต้องรอ tool call ใหม่ หาก host สร้าง MCP session ใหม่แต่ส่ง logical chat context เดิมกลับมา การ bind workspace จะ rebind agent เดิมให้เองด้วย จึงไม่ต้อง register ซ้ำ Agent แต่ละตัวสามารถเรียก `dwb_agent action=send` ส่งข้อความตรงข้ามแชท หรือใช้ `dwb_task action=complete` เพื่อให้ broker ส่ง handoff ไปยัง task ถัดไป หาก host ปิด session และต้องการให้มี worker ทำงานต่อโดยไม่ต้องเปิดแชทค้าง ให้เปิด autonomous mode; broker จะใช้ `codex exec --ephemeral` เป็น worker process แยกและเชื่อม DWB MCP โดยตรง
 
 เปิด autonomous mode ใน `%LOCALAPPDATA%\DWB-MCP-Studio\config.json`:
 

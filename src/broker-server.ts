@@ -18,6 +18,10 @@ import { AgentTaskStore, type AgentMessageView, type TaskStatus } from './agent-
 import { AgentWakeQueue } from './agent-wake.js';
 import { AutonomousAgentSupervisor } from './autonomous-agent-runner.js';
 import { applySavedBrokerConfig } from './broker-config.js';
+import { ExternalMcpManager } from './external-mcp-manager.js';
+import { ExternalMcpStore } from './external-mcp-store.js';
+import { ExternalMcpController } from './external-mcp-controller.js';
+import { ExternalMcpInstaller } from './external-mcp-installer.js';
 
 applySavedBrokerConfig();
 const endpoint = brokerEndpoint();
@@ -27,6 +31,9 @@ let workspaceStore: WorkspaceStore;
 let agentTasks: AgentTaskStore;
 let registry: SessionRegistry;
 let autonomousAgents: AutonomousAgentSupervisor | null = null;
+let externalMcpStore: ExternalMcpStore | null = null;
+let externalMcpManager: ExternalMcpManager | null = null;
+let externalMcpController: ExternalMcpController | null = null;
 const agentWake = new AgentWakeQueue();
 const sockets = new Map<Socket, ConnectionContext>();
 let markReady!: () => void;
@@ -271,6 +278,7 @@ async function controlTool(
         task: agentTasks.createTask(workspace.id, {
           title: args.title,
           description: args.description,
+          targetAgentId: args.to_agent_id,
           fileScopes: args.file_scopes,
           dependsOn: args.depends_on,
           requiredRole: args.required_role,
@@ -281,9 +289,11 @@ async function controlTool(
     if (action === 'delegate') {
       const coordinator = agentTasks.agentForSession(sessionId, workspace.id);
       if (!coordinator) throw new Error('Register the main agent before delegating tasks.');
+      const targetAgentId = typeof args.to_agent_id === 'string' ? args.to_agent_id.trim() : '';
       const task = agentTasks.createTask(workspace.id, {
         title: args.title,
         description: args.description,
+        targetAgentId: targetAgentId || undefined,
         fileScopes: args.file_scopes,
         dependsOn: args.depends_on,
         requiredRole: args.required_role,
@@ -293,11 +303,15 @@ async function controlTool(
       let dispatched = false;
       let dispatchError: string | null = null;
       try {
-        agentTasks.dispatchTask(task.id, coordinator.id);
+        agentTasks.dispatchTask(task.id, coordinator.id, targetAgentId || undefined);
         dispatched = true;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (!message.startsWith('DWB_TASK_NO_AGENT:')) throw error;
+        if (
+          !message.startsWith('DWB_TASK_NO_AGENT:') &&
+          !message.startsWith('DWB_TASK_TARGET_NOT_AVAILABLE:')
+        )
+          throw error;
         dispatchError = message;
       }
       dispatchAndNotifyAgentMessages();
@@ -320,7 +334,12 @@ async function controlTool(
     if (!taskId) throw new Error('task_id is required.');
     if (action === 'dispatch') {
       const requester = agentTasks.agentForSession(sessionId, workspace.id);
-      const task = agentTasks.dispatchTask(taskId, requester?.id ?? null);
+      const targetAgentId = typeof args.to_agent_id === 'string' ? args.to_agent_id.trim() : '';
+      const task = agentTasks.dispatchTask(
+        taskId,
+        requester?.id ?? null,
+        targetAgentId || undefined,
+      );
       dispatchAndNotifyAgentMessages();
       return textResult({ task });
     }
@@ -444,6 +463,7 @@ async function handle(
     const sessions = registry.listSessions();
     return {
       broker: registry.status,
+      externalMcp: externalMcpManager?.getStatus() ?? [],
       agentTasks: agentTasks.dashboardSnapshot(),
       totalSessions: sessions.length,
       sessions: sessions.slice(0, 200).map((session) => ({
@@ -461,6 +481,11 @@ async function handle(
       })),
     };
   }
+  if (message.method === 'external_mcp_manage') {
+    if (!externalMcpController) throw new Error('External MCP manager is not ready');
+    if (message.params?.action !== 'list') lifetime.begin();
+    return externalMcpController.handle(message.params ?? {});
+  }
   if (!ctx.sessionId) throw new Error('hello must be sent before broker requests');
   const sessionId = await registry.resolveContext(ctx.sessionId, requestContext(message));
   // A session can be alive while its agent lease is paused because the host
@@ -468,8 +493,17 @@ async function handle(
   // request as proof of life before trying to dispatch queued work.
   if (agentTasks.wakeConnectedAgents([sessionId]).length) dispatchAndNotifyAgentMessages();
   if (message.method === 'list_tools') {
-    const upstream = await registry.listTools(sessionId, lifetime);
-    return { ...upstream, tools: [...upstream.tools, ...brokerTools] };
+    const upstreamResult = await registry.listTools(sessionId, lifetime).then(
+      (result) => ({ result, error: null as unknown }),
+      (error) => ({ result: null, error }),
+    );
+    const upstream = upstreamResult.result ?? { tools: [] };
+    const reservedNames = [
+      ...upstream.tools.map((tool: { name: string }) => tool.name),
+      ...brokerTools.map((tool) => tool.name),
+    ];
+    const externalTools = await externalMcpManager!.listTools(sessionId, reservedNames);
+    return { ...upstream, tools: [...upstream.tools, ...brokerTools, ...externalTools] };
   }
   if (message.method === 'call_tool') {
     const params = callParams(message);
@@ -486,6 +520,8 @@ async function handle(
       lifetime,
     );
     if (controlled !== NOT_A_CONTROL_TOOL) return controlled;
+    if (externalMcpManager!.isManagedTool(sessionId, params.name))
+      return externalMcpManager!.callTool(sessionId, params.name, params.arguments);
     return registry.callTool(sessionId, message.id, params, lifetime);
   }
   if (message.method === 'list_resources') return registry.listResources(sessionId, lifetime);
@@ -601,7 +637,15 @@ function accept(socket: Socket): void {
     sockets.delete(socket);
     ctx.closed = true;
     for (const request of requests.values()) request.cancel();
-    if (ctx.sessionId) void registry.detach(ctx.sessionId).catch(() => {});
+    if (ctx.sessionId) {
+      const sessionId = ctx.sessionId;
+      void registry
+        .detach(sessionId)
+        .then(() => {
+          if (!connectedSessionIds().has(sessionId)) return externalMcpManager?.closeSession(sessionId);
+        })
+        .catch(() => {});
+    }
   });
   socket.on('error', () => {});
 }
@@ -616,6 +660,7 @@ async function shutdown(code: number): Promise<void> {
   if (heartbeat) clearInterval(heartbeat);
   heartbeat = null;
   autonomousAgents?.stopAll();
+  await externalMcpManager?.shutdown().catch(() => {});
   const closed = new Promise<void>((resolve) => server.close(() => resolve()));
   for (const socket of sockets.keys()) socket.destroy();
   await registry?.shutdown().catch(() => {});
@@ -654,6 +699,23 @@ async function main(): Promise<void> {
   workspaceStore = new WorkspaceStore(coreDb);
   agentTasks = new AgentTaskStore(coreDb, workspaceStore);
   registry = new SessionRegistry(log, workspaceStore, undefined, agentTasks);
+  externalMcpStore = new ExternalMcpStore();
+  let externalDefinitions: import('./external-mcp-manager.js').ExternalMcpDefinition[] = [];
+  try {
+    externalDefinitions = await externalMcpStore.load();
+  } catch (error) {
+    await log.write({
+      type: 'external_mcp_config_load_failed',
+      ok: false,
+      details: { error: error instanceof Error ? error.message : String(error) },
+    });
+  }
+  externalMcpManager = new ExternalMcpManager(externalDefinitions);
+  externalMcpController = new ExternalMcpController(
+    externalMcpStore,
+    externalMcpManager,
+    new ExternalMcpInstaller(),
+  );
   autonomousAgents = new AutonomousAgentSupervisor(agentTasks, workspaceStore, {
     onEvent: (event) => {
       void log.write({

@@ -10,6 +10,7 @@ if (
     'shell-test',
     'runtime-upgrade-test',
     'preferences-test',
+    'mcp-manager-test',
   ].includes(name)
 )
   throw new Error('Unknown PowerShell test');

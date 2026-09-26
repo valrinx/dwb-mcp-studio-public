@@ -78,7 +78,7 @@ export const brokerTools = [
   {
     name: 'dwb_agent',
     description:
-      'Register, inspect, receive, send, and acknowledge messages for an agent working in the current bound workspace. Multiple agents can share one workspace while using separate tasks. Connected paused agents are reactivated automatically when the broker dispatches queued work, and a reconnecting chat context can reclaim its paused agent without manual re-registration.',
+      'Register, inspect, receive, send, and acknowledge messages for an agent session working in the current bound workspace. Separate ChatGPT chats can register as Planner, Coder, Tester, Reviewer, or Main and exchange durable messages across sessions. Connected paused agents are reactivated automatically when the broker dispatches queued work, and a reconnecting chat context can reclaim its paused agent without manual re-registration.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -123,7 +123,7 @@ export const brokerTools = [
   {
     name: 'dwb_task',
     description:
-      'Coordinate separate tasks for agents in the current workspace. Claiming a task reserves its file scopes and prevents overlapping active tasks.',
+      'Coordinate tasks across agent sessions in the current workspace. Main Agent can use delegate to route by role/capability or set to_agent_id to send directly to a registered agent in another ChatGPT chat; if no matching chat is connected, autonomous mode can create a local worker. Claiming a task reserves its file scopes and prevents overlapping active tasks.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -152,6 +152,11 @@ export const brokerTools = [
           description: 'Capabilities required for automatic dispatch.',
         },
         priority: { type: 'integer', description: 'Higher priority tasks dispatch first.' },
+        to_agent_id: {
+          type: 'string',
+          description:
+            'Optional exact target agent/session ID for cross-chat delivery. Use dwb_agent action=list first; omit to dispatch by role/capability.',
+        },
         task_id: { type: 'string' },
         reason: { type: 'string', description: 'Reason for blocking a task.' },
         result: { description: 'Optional JSON result saved when completing a task.' },

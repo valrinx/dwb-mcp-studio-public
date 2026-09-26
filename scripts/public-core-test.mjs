@@ -340,6 +340,38 @@ try {
     ).structuredContent.task.status,
     'done',
   );
+  const targetedTask = (
+    await call(a, 'dwb_task', {
+      action: 'delegate',
+      title: 'Direct cross-chat handoff',
+      description: 'Main sends this task to the selected frontend chat.',
+      file_scopes: ['src/cross-chat/**'],
+      required_role: 'frontend',
+      required_capabilities: ['ui'],
+      to_agent_id: agentB.id,
+    })
+  ).structuredContent;
+  assert.equal(targetedTask.dispatched, true);
+  assert.equal(targetedTask.task.assignedAgentId, agentB.id);
+  await waitFor(() =>
+    notifications.b.some(
+      (data) =>
+        data?.type === 'agent_message' &&
+        data.message?.kind === 'task_assigned' &&
+        data.message?.targetTaskId === targetedTask.task.id,
+    ),
+  );
+  assert.equal(
+    (
+      await call(b, 'dwb_task', {
+        action: 'complete',
+        task_id: targetedTask.task.id,
+        summary: 'Received and completed from the Main Agent chat.',
+        changed_files: [],
+      })
+    ).structuredContent.task.status,
+    'done',
+  );
   assert.equal(
     (await call(a, 'dwb_task', { action: 'claim', task_id: backendTask.id })).structuredContent.task
       .status,

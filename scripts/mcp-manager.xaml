@@ -1,0 +1,74 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="DWB · MCP Servers" Width="1080" Height="900" MinWidth="900" MinHeight="760" WindowStartupLocation="CenterScreen"
+ Background="#0D151F" Foreground="#E9F0F7" FontFamily="Leelawadee UI, Segoe UI" FontSize="13">
+ <Window.Resources>
+  <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style>
+  <Style TargetType="Button">
+   <Setter Property="Background" Value="#1B3041"/><Setter Property="Foreground" Value="#E9F0F7"/><Setter Property="BorderBrush" Value="#345064"/>
+   <Setter Property="Padding" Value="16,9"/><Setter Property="Cursor" Value="Hand"/>
+  </Style>
+  <Style TargetType="TextBox">
+   <Setter Property="Background" Value="#10202C"/><Setter Property="Foreground" Value="#E9F0F7"/><Setter Property="BorderBrush" Value="#345064"/>
+   <Setter Property="Padding" Value="8,6"/><Setter Property="CaretBrush" Value="White"/>
+  </Style>
+  <Style TargetType="DataGrid">
+   <Setter Property="Background" Value="#101F2B"/><Setter Property="Foreground" Value="#DAE7F0"/><Setter Property="BorderThickness" Value="0"/>
+   <Setter Property="RowBackground" Value="#101F2B"/><Setter Property="AlternatingRowBackground" Value="#142531"/>
+   <Setter Property="GridLinesVisibility" Value="None"/><Setter Property="HeadersVisibility" Value="Column"/>
+   <Setter Property="IsReadOnly" Value="True"/><Setter Property="AutoGenerateColumns" Value="False"/><Setter Property="CanUserAddRows" Value="False"/>
+   <Setter Property="RowHeight" Value="36"/><Setter Property="SelectionMode" Value="Single"/>
+  </Style>
+  <Style TargetType="DataGridColumnHeader"><Setter Property="Background" Value="#1A3040"/><Setter Property="Foreground" Value="#93B3C5"/><Setter Property="Padding" Value="10,9"/><Setter Property="BorderThickness" Value="0"/></Style>
+  <Style TargetType="DataGridCell"><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="10,4"/><Setter Property="VerticalContentAlignment" Value="Center"/></Style>
+ </Window.Resources>
+ <Grid Margin="24">
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="170"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <Grid Margin="0,0,0,16"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+   <StackPanel><TextBlock Text="จัดการ MCP Servers" FontSize="27" FontWeight="SemiBold"/><TextBlock Text="เพิ่มเซิร์ฟเวอร์ stdio ที่มีอยู่ แล้วรวม tools ผ่าน DWB" Foreground="#8BAABD" Margin="0,6,0,0"/></StackPanel>
+   <Button x:Name="Refresh" Grid.Column="1" Content="รีเฟรชรายการ" VerticalAlignment="Center"/>
+  </Grid>
+  <Border Grid.Row="1" Background="#12222E" BorderBrush="#294352" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,12">
+   <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition Width="220"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <StackPanel Grid.Column="0" Margin="0,0,12,0"><TextBlock Text="Curated catalog (pinned versions)" Foreground="#8BAABD" Margin="0,0,0,5"/><ComboBox x:Name="Catalog" DisplayMemberPath="name" Background="#10202C" Foreground="#E9F0F7" Padding="6"/></StackPanel>
+    <StackPanel Grid.Column="1" Margin="0,0,12,0"><TextBlock Text="Allowed directory - required for Filesystem" Foreground="#8BAABD" Margin="0,0,0,5"/><TextBox x:Name="AllowedDirectory"/></StackPanel>
+    <Button x:Name="ChooseDirectory" Grid.Column="2" Content="Choose folder" Margin="0,20,8,0"/>
+    <Button x:Name="InstallCatalog" Grid.Column="3" Content="Install" Background="#08B8D2" Foreground="#06252E" BorderBrush="#08B8D2" FontWeight="Bold" Margin="0,20,0,0"/>
+    <TextBlock x:Name="CatalogInfo" Grid.Row="1" Grid.ColumnSpan="4" Foreground="#EDC477" FontSize="11" Margin="0,8,0,0"/>
+   </Grid>
+  </Border>
+  <DataGrid x:Name="Servers" Grid.Row="2" Margin="0,0,0,12"><DataGrid.Columns>
+   <DataGridTextColumn Header="ชื่อ" Binding="{Binding Name}" Width="130"/>
+   <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="120"/>
+   <DataGridTextColumn Header="Command" Binding="{Binding Command}" Width="2*"/>
+   <DataGridTextColumn Header="สถานะ" Binding="{Binding State}" Width="130"/>
+   <DataGridTextColumn Header="Sessions" Binding="{Binding Sessions}" Width="75"/>
+   <DataGridTextColumn Header="ข้อผิดพลาด" Binding="{Binding Error}" Width="2*"/>
+  </DataGrid.Columns></DataGrid>
+  <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,14">
+   <Button x:Name="NewServer" Content="เพิ่มใหม่"/>
+   <Button x:Name="SaveServer" Content="บันทึก" Margin="8,0,0,0" Background="#08B8D2" Foreground="#06252E" BorderBrush="#08B8D2" FontWeight="Bold"/>
+   <Button x:Name="RemoveServer" Content="ลบ" Margin="8,0,0,0"/>
+   <CheckBox x:Name="Enabled" Content="เปิดใช้งาน" Margin="20,0,0,0" VerticalAlignment="Center" Foreground="#D5E4EC"/>
+  </StackPanel>
+  <Grid Grid.Row="4" Margin="0,0,0,12">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="2*"/></Grid.ColumnDefinitions>
+   <StackPanel Margin="0,0,10,0"><TextBlock Text="Server ID" Foreground="#8BAABD" Margin="0,0,0,5"/><TextBox x:Name="Id"/></StackPanel>
+   <StackPanel Grid.Column="1" Margin="5,0,10,0"><TextBlock Text="ชื่อที่แสดง" Foreground="#8BAABD" Margin="0,0,0,5"/><TextBox x:Name="Name"/></StackPanel>
+   <StackPanel Grid.Column="2" Margin="5,0,0,0"><TextBlock Text="Command / executable" Foreground="#8BAABD" Margin="0,0,0,5"/><TextBox x:Name="Command"/></StackPanel>
+  </Grid>
+  <Grid Grid.Row="5" Margin="0,0,0,12">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+   <StackPanel Margin="0,0,10,0"><TextBlock Text="Working directory (เว้นว่างได้)" Foreground="#8BAABD" Margin="0,0,0,5"/><TextBox x:Name="Cwd" Margin="0,0,0,10"/>
+    <TextBlock Text="Arguments · หนึ่ง argument ต่อบรรทัด" Foreground="#8BAABD" Margin="0,0,0,5"/><TextBox x:Name="Args" AcceptsReturn="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" MinHeight="150"/>
+   </StackPanel>
+   <StackPanel Grid.Column="1" Margin="10,0,0,0"><TextBlock Text="Environment · KEY=VALUE ต่อบรรทัด" Foreground="#8BAABD" Margin="0,0,0,5"/>
+    <TextBox x:Name="Environment" AcceptsReturn="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" MinHeight="150"/>
+    <TextBlock Text="ค่าที่บันทึกไว้จะแสดงเป็น KEY= โดยไม่เปิดเผยค่าเดิม; เว้นว่างเพื่อคงค่าเดิม, พิมพ์ค่าใหม่เพื่อแทนที่, หรือใช้ KEY=!clear เพื่อลบตัวแปร" Foreground="#8BAABD" FontSize="11" Margin="0,7,0,0"/>
+   </StackPanel>
+  </Grid>
+  <StackPanel Grid.Row="6">
+   <TextBlock Text="คำเตือน: MCP server ภายนอกจะทำงานด้วยสิทธิ์ของบัญชี Windows นี้; Command และ arguments จะถูกเรียกตรงโดยไม่ผ่าน shell. ค่า Environment เข้ารหัสด้วย Windows DPAPI ในเครื่องนี้" Foreground="#EDC477" FontSize="11"/>
+   <TextBlock x:Name="ActionStatus" Text="กำลังอ่านรายการ…" Foreground="#8BAABD" Margin="0,7,0,0"/>
+  </StackPanel>
+ </Grid>
+</Window>

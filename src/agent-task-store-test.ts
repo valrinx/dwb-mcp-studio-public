@@ -687,6 +687,91 @@ test('dispatch sends an assignment to the worker and returns an acknowledgement 
   }
 });
 
+test('dispatch can target a specific agent session across chats', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const main = tasks.registerAgent('session-target-main', workspace.id, {
+      name: 'main-agent',
+      role: 'main',
+    } as any);
+    const target = tasks.registerAgent('session-target-chat', workspace.id, {
+      name: 'Coder - Implementation',
+      role: 'coder',
+      capabilities: ['typescript'],
+    } as any);
+    const decoy = tasks.registerAgent('session-other-chat', workspace.id, {
+      name: 'Coder - Backup',
+      role: 'coder',
+      capabilities: ['typescript'],
+    } as any);
+    const task = tasks.createTask(workspace.id, {
+      title: 'Send directly to the implementation chat',
+      description: 'This must arrive in the selected Coder session.',
+      fileScopes: ['src/backend/**'],
+      requiredRole: 'coder',
+      requiredCapabilities: ['typescript'],
+    } as any);
+
+    const assigned = tasks.dispatchTask(task.id, main.id, target.id);
+
+    assert.equal(assigned.assignedAgentId, target.id);
+    assert.equal(tasks.listAgentMessages(workspace.id, target.id)[0].payload.taskId, task.id);
+    assert.deepEqual(tasks.listAgentMessages(workspace.id, decoy.id), []);
+  } finally {
+    db.close();
+  }
+});
+
+test('targeted work stays queued instead of falling back to another chat', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const target = tasks.registerAgent('session-paused-target', workspace.id, {
+      name: 'Tester - QA',
+      role: 'tester',
+      capabilities: ['qa'],
+    } as any);
+    const other = tasks.registerAgent('session-other-tester', workspace.id, {
+      name: 'Tester - Backup',
+      role: 'tester',
+      capabilities: ['qa'],
+    } as any);
+    tasks.pauseAgent(target.id, 'chat_disconnected');
+    const task = tasks.createTask(workspace.id, {
+      title: 'Wait for the selected QA chat',
+      description: 'Do not reroute this task to another tester.',
+      fileScopes: ['src/qa/**'],
+      requiredRole: 'tester',
+      requiredCapabilities: ['qa'],
+      targetAgentId: target.id,
+    } as any);
+
+    assert.throws(
+      () => tasks.claimTask(task.id, other.id),
+      /DWB_TASK_TARGET_NOT_AVAILABLE/,
+    );
+    assert.equal(tasks.dispatchQueuedTasks(), 0);
+    assert.equal(tasks.getTask(task.id)?.status, 'queued');
+    assert.equal(tasks.getTask(task.id)?.assignedAgentId, null);
+
+    tasks.wakeConnectedAgents([target.sessionId]);
+    assert.equal(tasks.dispatchQueuedTasks(), 1);
+    assert.equal(tasks.getTask(task.id)?.assignedAgentId, target.id);
+    assert.equal(tasks.getTask(task.id)?.assignedAgentId === other.id, false);
+  } finally {
+    db.close();
+  }
+});
+
 test('agents can exchange durable direct messages and acknowledgements', async () => {
   const root = resolve('logs', `agent-tasks-${randomUUID()}`);
   await mkdir(root, { recursive: true });

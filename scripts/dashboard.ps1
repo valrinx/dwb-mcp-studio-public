@@ -13,7 +13,7 @@ $script:Probe=$null; $script:Output=$null; $script:Errors=$null
 $script:LastProbe=[DateTime]::MinValue
 $script:Node=Get-DwbNode
 function Open-DwbScreen([string]$Name,[string]$Extra=''){
-  if($global:DwbShell){Set-DwbPage $(if($Name -eq 'tunnel-setup.ps1'){'connection'}else{'setup-config'});return}
+  if($global:DwbShell -and $Name -ne 'mcp-manager.ps1'){Set-DwbPage $(if($Name -eq 'tunnel-setup.ps1'){'connection'}else{'setup-config'});return}
   $args='-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File '+(ConvertTo-DwbArgument (Join-Path $PSScriptRoot $Name))+' '+$Extra
   Start-Process -FilePath powershell.exe -ArgumentList $args -WindowStyle Hidden | Out-Null
 }
@@ -111,6 +111,7 @@ function Finish-Probe{
 (Find 'AppPreferences').IsEnabled=[bool]$global:DwbShell
 (Find 'Connection').Add_Click({Open-DwbScreen 'tunnel-setup.ps1'})
 (Find 'MachineSetup').Add_Click({Open-DwbScreen 'setup.ps1' '-ConfigureOnly'})
+(Find 'McpServers').Add_Click({Open-DwbScreen 'mcp-manager.ps1'})
 (Find 'WorkspaceHelp').Add_Click({$info=New-Object Diagnostics.ProcessStartInfo;$info.FileName=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\docs\workspaces.html'));$info.UseShellExecute=$true;[Diagnostics.Process]::Start($info)|Out-Null})
 (Find 'Refresh').Add_Click({Begin-Probe})
 (Find 'StartMcp').Add_Click({
