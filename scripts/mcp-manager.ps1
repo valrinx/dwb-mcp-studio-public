@@ -95,8 +95,12 @@ function Update-ServerList($Data){
   (Find 'RunningCount').Text=[string]@($rows | Where-Object {$_.StateKey -eq 'running'}).Count
   (Find 'ProblemCount').Text=[string]@($rows | Where-Object {$_.StateKey -eq 'error'}).Count
   (Find 'EmptyState').Visibility=if($rows.Count){'Collapsed'}else{'Visible'}
-  (Find 'BrokerState').Text=if($script:BrokerRunning){'Broker กำลังทำงาน'}else{'รอ MCP เชื่อมต่อ'}
-  (Find 'BrokerDot').Fill=if($script:BrokerRunning){[Windows.Media.Brushes]::MediumSeaGreen}else{[Windows.Media.Brushes]::SlateGray}
+  $brokerText=if($script:BrokerRunning){'Broker กำลังทำงาน'}else{'รอ MCP เชื่อมต่อ'}
+  $brokerBrush=if($script:BrokerRunning){[Windows.Media.Brushes]::MediumSeaGreen}else{[Windows.Media.Brushes]::SlateGray}
+  (Find 'BrokerDot').Fill=$brokerBrush
+  (Find 'BrokerDot').ToolTip=$brokerText
+  (Find 'BrokerStatusIndicator').ToolTip=$brokerText
+  [System.Windows.Automation.AutomationProperties]::SetName((Find 'BrokerDot'),$brokerText)
   (Find 'ActionStatus').Text=if($script:BrokerRunning){'บันทึกแล้วและซิงก์กับ Broker ที่กำลังทำงาน'}else{'Broker ยังไม่ทำงาน · การเปลี่ยนแปลงจะเริ่มใช้เมื่อ MCP เชื่อมต่อ'}
 }
 
@@ -264,9 +268,10 @@ function New-ServerForm{
 })
 $window.Add_ContentRendered({Refresh-Catalog;Refresh-Servers})
 if($UiTest){
-  foreach($name in @('Servers','Refresh','NewServer','SaveServer','RemoveServer','Enabled','Id','Name','Command','Cwd','Args','Environment','Catalog','AllowedDirectory','ChooseDirectory','InstallCatalog','CatalogInfo','GitHubRepository','InstallGitHub','GitHubStatus','GitHubStatusPanel','GitHubProgress','ActionStatus','Editor','AdvancedSettings','EditorTitle','ServerCount','EnabledCount','RunningCount','ProblemCount','BrokerState','BrokerDot','EmptyState')){
+  foreach($name in @('Servers','Refresh','NewServer','SaveServer','RemoveServer','Enabled','Id','Name','Command','Cwd','Args','Environment','Catalog','AllowedDirectory','ChooseDirectory','InstallCatalog','CatalogInfo','GitHubRepository','InstallGitHub','GitHubStatus','GitHubStatusPanel','GitHubProgress','ActionStatus','Editor','AdvancedSettings','EditorTitle','ServerCount','EnabledCount','RunningCount','ProblemCount','BrokerStatusIndicator','BrokerDot','EmptyState')){
     if(-not (Find $name)){throw "MCP Manager is missing control: $name"}
   }
+  if(Find 'BrokerState'){throw 'The MCP broker status should be displayed as a dot, not a text label.'}
   $managerProbe=Invoke-McpManager 'catalog' @{}
   if(@($managerProbe.catalog).Count -ne 1 -or $managerProbe.catalog[0].id -ne 'filesystem'){throw 'MCP Manager could not exchange a UTF-8 request with its Node helper.'}
   $testData=Join-Path $env:TEMP ('dwb-mcp-manager-stdin-'+[Guid]::NewGuid().ToString('N'))
@@ -283,6 +288,13 @@ if($UiTest){
     if($null -eq $oldPipe){Remove-Item Env:DWB_BROKER_PIPE -ErrorAction SilentlyContinue}else{$env:DWB_BROKER_PIPE=$oldPipe}
     if(Test-Path -LiteralPath $testData){Remove-Item -LiteralPath $testData -Recurse -Force}
   }
+  $packageCombo=Find 'Catalog';$null=$packageCombo.ApplyTemplate()
+  $packagePopup=$packageCombo.Template.FindName('PART_Popup',$packageCombo)
+  if($packagePopup -isnot [Windows.Controls.Primitives.Popup]){throw 'The server package selector is missing its custom dropdown surface.'}
+  $packageCombo.ItemsSource=@([pscustomobject]@{name='Filesystem'},[pscustomobject]@{name='Other MCP'})
+  $packageCombo.SelectedIndex=0;$packageCombo.IsDropDownOpen=$true;$window.UpdateLayout()
+  if($packagePopup.PopupAnimation -ne [Windows.Controls.Primitives.PopupAnimation]::Fade -or $packagePopup.Placement -ne [Windows.Controls.Primitives.PlacementMode]::Bottom -or -not $packagePopup.AllowsTransparency -or $packageCombo.SelectedItem.name -ne 'Filesystem'){throw 'The custom server package selector did not preserve its selection and designed dropdown surface.'}
+  $packageCombo.IsDropDownOpen=$false;$packageCombo.ItemsSource=$null
   Set-GitHubInstallStatus 'GitHub install failed: test diagnostic' 'error'
   if((Find 'GitHubStatus').Text -ne 'GitHub install failed: test diagnostic' -or (Find 'GitHubStatus').Visibility -ne [Windows.Visibility]::Visible -or (Find 'GitHubProgress').Visibility -ne [Windows.Visibility]::Collapsed){throw 'GitHub installation feedback is not visible in the install panel.'}
   Set-GitHubInstallStatus 'GitHub install is running' 'working'
@@ -324,12 +336,16 @@ if($UiTest){
     brokerRunning=$true
   }
   Update-ServerList $fixture
+  if((Find 'BrokerDot').ToolTip -ne 'Broker กำลังทำงาน'){throw 'The connected broker dot is missing its status tooltip.'}
+  $brokerIndicator=Find 'BrokerStatusIndicator'
+  if($brokerIndicator.Width -gt 34 -or $brokerIndicator.Height -gt 34){throw 'The MCP broker status indicator is larger than a compact dot control.'}
   $rows=@((Find 'Servers').ItemsSource)
   if((Find 'ServerCount').Text -ne '3' -or (Find 'EnabledCount').Text -ne '2' -or (Find 'RunningCount').Text -ne '1' -or (Find 'ProblemCount').Text -ne '1'){throw 'MCP summary cards did not reflect the server fixture.'}
   if($rows[0].State -ne 'กำลังทำงาน' -or $rows[1].State -ne 'ต้องตรวจสอบ' -or $rows[2].State -ne 'ปิดใช้งาน'){throw 'MCP server status labels were not mapped to their user-facing states.'}
   if((Find 'EmptyState').Visibility -ne [Windows.Visibility]::Collapsed){throw 'The empty state remained visible when servers were present.'}
   Update-ServerList @{servers=@();status=@();brokerRunning=$false}
   if((Find 'EmptyState').Visibility -ne [Windows.Visibility]::Visible){throw 'The empty state was not shown when no servers were present.'}
+  if((Find 'BrokerDot').ToolTip -ne 'รอ MCP เชื่อมต่อ'){throw 'The waiting broker dot is missing its status tooltip.'}
   Update-ServerList $fixture
   (Find 'Editor').IsExpanded=$false
   $window.MinHeight=620;$window.Width=1000;$window.Height=620
@@ -363,6 +379,6 @@ if($UiTest){
   if($footerBottom -gt $scroll.ViewportHeight){throw 'The MCP manager footer is not reachable by scrolling on a short display.'}
   Fit-McpManagerWindow ([Windows.Rect]::new(0,0,900,600))
   if($window.Width -gt 900 -or $window.Height -gt 600 -or $window.MinWidth -gt 900 -or $window.MinHeight -gt 600){throw 'The MCP manager window does not fit within the available display area.'}
-  if($UiTestReport){[IO.File]::WriteAllText($UiTestReport,'PASS: MCP Manager UI behavior: servers=3; enabled=2; running=1; issues=1; UTF-8 helper round-trip=verified; empty=visible; scroll=available; GitHub feedback=visible; progress=shown; window=fitted; layout=nonoverlapping')}
+  if($UiTestReport){[IO.File]::WriteAllText($UiTestReport,'PASS: MCP Manager UI behavior: servers=3; enabled=2; running=1; issues=1; UTF-8 helper round-trip=verified; package selector=custom; broker status=dot-only; empty=visible; scroll=available; GitHub feedback=visible; progress=shown; window=fitted; layout=nonoverlapping')}
   $window.Close()
 }else{$null=$window.ShowDialog()}
