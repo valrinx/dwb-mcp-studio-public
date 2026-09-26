@@ -206,7 +206,7 @@ function New-ServerForm{
     $repositoryUrl=([string](Find 'GitHubRepository').Text).Trim()
     if(-not $repositoryUrl){throw 'Paste a GitHub repository URL first.'}
     $confirmation=[Windows.MessageBox]::Show(
-      "DWB จะดาวน์โหลด repo และรันสคริปต์ติดตั้ง/สร้างโปรแกรมของ npm ด้วยสิทธิ์บัญชี Windows นี้`n`nทำต่อเมื่อเชื่อถือแหล่งที่มาเท่านั้น เมื่อติดตั้งเสร็จ server จะยังปิดใช้งานอยู่`n`n$repositoryUrl",
+      "N3zuui จะดาวน์โหลด repo และรันสคริปต์ติดตั้ง/สร้างโปรแกรมของ npm ด้วยสิทธิ์บัญชี Windows นี้`n`nทำต่อเมื่อเชื่อถือแหล่งที่มาเท่านั้น เมื่อติดตั้งเสร็จ server จะยังปิดใช้งานอยู่`n`n$repositoryUrl",
       'ยืนยันติดตั้ง MCP จาก GitHub',
       [Windows.MessageBoxButton]::OKCancel,
       [Windows.MessageBoxImage]::Warning)
@@ -342,6 +342,14 @@ if($UiTest){
   $rows=@((Find 'Servers').ItemsSource)
   if((Find 'ServerCount').Text -ne '3' -or (Find 'EnabledCount').Text -ne '2' -or (Find 'RunningCount').Text -ne '1' -or (Find 'ProblemCount').Text -ne '1'){throw 'MCP summary cards did not reflect the server fixture.'}
   if($rows[0].State -ne 'กำลังทำงาน' -or $rows[1].State -ne 'ต้องตรวจสอบ' -or $rows[2].State -ne 'ปิดใช้งาน'){throw 'MCP server status labels were not mapped to their user-facing states.'}
+  $statusColumn=@((Find 'Servers').Columns | Where-Object {$_.Header -eq 'สถานะ'}) | Select-Object -First 1
+  $statusBadge=$statusColumn.CellTemplate.LoadContent()
+  if($statusBadge.VerticalAlignment -ne [Windows.VerticalAlignment]::Center -or $statusBadge.MinWidth -gt 0){throw 'MCP server status badge should be compact and vertically centered inside its cell.'}
+  $statusStack=$statusBadge.Child
+  if($statusStack -isnot [Windows.Controls.StackPanel]){throw 'MCP server status badge should group its dot and label horizontally.'}
+  $statusDot=@($statusStack.Children | Where-Object {$_ -is [Windows.Shapes.Ellipse]}) | Select-Object -First 1
+  $statusLabel=@($statusStack.Children | Where-Object {$_ -is [Windows.Controls.TextBlock]}) | Select-Object -First 1
+  if(-not $statusDot -or -not $statusLabel -or $statusLabel.FontSize -lt 11){throw 'MCP server status badge should expose a visible dot and readable label.'}
   if((Find 'EmptyState').Visibility -ne [Windows.Visibility]::Collapsed){throw 'The empty state remained visible when servers were present.'}
   Update-ServerList @{servers=@();status=@();brokerRunning=$false}
   if((Find 'EmptyState').Visibility -ne [Windows.Visibility]::Visible){throw 'The empty state was not shown when no servers were present.'}

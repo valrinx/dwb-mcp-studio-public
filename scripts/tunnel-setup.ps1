@@ -15,13 +15,13 @@ $stopButton = Find 'StopMcp'
 $script:ClientExe = ''
 $script:WasRunning = $false
 $script:StartedAt = $null
-$logo = [Windows.Media.Imaging.BitmapImage]::new([Uri][IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\assets\dwb-logo.png')))
+$logo = [Windows.Media.Imaging.BitmapImage]::new([Uri][IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\assets\n3zuui-mark.png')))
 (Find 'Logo').Source = $logo
 $window.Icon = $logo
 function Update-Client {
   (Find 'ClientPath').Text = 'external\tunnel-client\tunnel-client.exe'
   (Find 'ClientPath').ToolTip = $script:ClientExe
-  (Find 'ClientStatus').Text = if ($script:ClientExe) { 'tunnel-client ประจำ DWB นี้ · พร้อมใช้' } else { 'ยังไม่มีส่วนประกอบใน DWB นี้ · กดติดตั้ง' }
+  (Find 'ClientStatus').Text = if ($script:ClientExe) { 'tunnel-client ประจำ N3zuui นี้ · พร้อมใช้' } else { 'ยังไม่มีส่วนประกอบใน N3zuui นี้ · กดติดตั้ง' }
 }
 function Set-TunnelInputs([bool]$Enabled) {
   foreach ($control in @($tunnelInput,$keyInput,$remember,(Find 'BrowseClient'),(Find 'MachineSetup'),$startButton)) { $control.IsEnabled=$Enabled }

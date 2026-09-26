@@ -6,7 +6,7 @@ $reader=[Xml.XmlReader]::Create([IO.StringReader]::new([IO.File]::ReadAllText((J
 try{$window=[Windows.Markup.XamlReader]::Load($reader)}finally{$reader.Dispose()}
 if($global:DwbShell){Register-DwbWindow $window}
 function Find([string]$Name){return $window.FindName($Name)}
-$logo=[Windows.Media.Imaging.BitmapImage]::new([Uri][IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\assets\dwb-logo.png')))
+$logo=[Windows.Media.Imaging.BitmapImage]::new([Uri][IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\assets\n3zuui-mark.png')))
 (Find 'Logo').Source=$logo; $window.Icon=$logo
 try{(Find 'Version').Text=(Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\package.json') -Raw | ConvertFrom-Json).version}catch{}
 $script:Probe=$null; $script:Output=$null; $script:Errors=$null

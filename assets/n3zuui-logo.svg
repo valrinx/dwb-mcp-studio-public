@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 420" role="img" aria-labelledby="title desc">
+  <title id="title">N3zuui Studio prism wordmark</title>
+  <desc id="desc">N3zuui wordmark paired with a compact luminous N3 prism monogram.</desc>
+  <defs>
+    <linearGradient id="nBody" gradientUnits="userSpaceOnUse" x1="150" y1="180" x2="650" y2="820"><stop offset="0" stop-color="#042C45"/><stop offset="1" stop-color="#0C1230"/></linearGradient>
+    <linearGradient id="nEdge" gradientUnits="userSpaceOnUse" x1="150" y1="180" x2="650" y2="820"><stop offset="0" stop-color="#00EFFF"/><stop offset="1" stop-color="#349BFF"/></linearGradient>
+    <linearGradient id="threeBody" gradientUnits="userSpaceOnUse" x1="560" y1="180" x2="900" y2="820"><stop offset="0" stop-color="#19144A"/><stop offset="1" stop-color="#321057"/></linearGradient>
+    <linearGradient id="threeEdge" gradientUnits="userSpaceOnUse" x1="560" y1="180" x2="900" y2="820"><stop offset="0" stop-color="#3B9BFF"/><stop offset="1" stop-color="#B45CFF"/></linearGradient>
+    <linearGradient id="connector" gradientUnits="userSpaceOnUse" x1="490" y1="480" x2="650" y2="480"><stop offset="0" stop-color="#00EFFF"/><stop offset="1" stop-color="#B45CFF"/></linearGradient>
+    <linearGradient id="wordEdge" gradientUnits="userSpaceOnUse" x1="410" y1="100" x2="1200" y2="300"><stop offset="0" stop-color="#EBFBFF"/><stop offset="0.46" stop-color="#00EFFF"/><stop offset="1" stop-color="#B45CFF"/></linearGradient>
+    <filter id="glow" x="-25%" y="-25%" width="150%" height="150%"><feGaussianBlur stdDeviation="10" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <g transform="translate(22 4) scale(.38)" stroke-linejoin="round">
+    <path d="M175 780 V210 H300 L500 485 V210 H610 V780 H490 L300 520 V780 Z" fill="url(#nBody)" stroke="url(#nEdge)" stroke-width="12" filter="url(#glow)"/>
+    <path d="M595 210 H755 C815 210 850 240 850 295 V325 C850 375 822 410 785 430 C822 450 850 485 850 535 V695 C850 750 815 780 755 780 H595 V650 H730 C752 650 770 638 770 615 V540 C770 518 752 505 730 505 H650 V385 H730 C752 385 770 372 770 350 V345 C770 323 752 315 730 315 H595 Z" fill="url(#threeBody)" stroke="url(#threeEdge)" stroke-width="12" filter="url(#glow)"/>
+    <path d="M492 485 H650" fill="none" stroke="url(#connector)" stroke-width="18" stroke-linecap="round" filter="url(#glow)"/>
+    <circle cx="575" cy="485" r="23" fill="#EBFBFF" filter="url(#glow)"/>
+    <circle cx="786" cy="470" r="16" fill="#EBFBFF" filter="url(#glow)"/>
+  </g>
+  <text x="410" y="270" font-family="Bahnschrift SemiBold, Segoe UI, sans-serif" font-size="160" font-weight="600" letter-spacing="-7" fill="url(#wordEdge)" filter="url(#glow)">N3zuui</text>
+</svg>

@@ -22,8 +22,8 @@ try{$owned=$mutex.WaitOne(0)}catch [Threading.AbandonedMutexException]{$owned=$t
 if(-not $owned){if(-not $Startup){$null=$wake.Set()};$wake.Dispose();$mutex.Dispose();return}
 $global:DwbShell=@{Window=$null;AllowClose=$false;Next='setup';Exiting=$false;Frame=$null;Preferences=(Get-DwbPreferences);StartupPending=[bool]$Startup;Quitting=$false;AutoConnectDeadline=$null;AutoConnectProbe=[DateTime]::MinValue}
 $tray=New-Object Windows.Forms.NotifyIcon
-$tray.Icon=New-Object Drawing.Icon((Join-Path $PSScriptRoot '..\assets\dwb.ico'),32,32)
-$tray.Text='DWB MCP Studio';$tray.Visible=$true
+$tray.Icon=New-Object Drawing.Icon((Join-Path $PSScriptRoot '..\assets\n3zuui.ico'),32,32)
+$tray.Text='N3zuui Studio';$tray.Visible=$true
 function global:Restore-DwbWindow {
   $current=$global:DwbShell.Window
   if($current){$current.ShowInTaskbar=$true;$current.Show();$current.WindowState='Normal';$null=$current.Activate()}
@@ -50,7 +50,7 @@ function global:Exit-DwbApp {
     return $true
   }catch{
     Restore-DwbWindow
-    [Windows.MessageBox]::Show(('ยังปิด MCP ไม่ได้ งานในเครื่องยังคงอยู่ กรุณาจบงานก่อนแล้วลองอีกครั้ง'+[Environment]::NewLine+$_.Exception.Message),'DWB MCP Studio')|Out-Null
+    [Windows.MessageBox]::Show(('ยังปิด MCP ไม่ได้ งานในเครื่องยังคงอยู่ กรุณาจบงานก่อนแล้วลองอีกครั้ง'+[Environment]::NewLine+$_.Exception.Message),'N3zuui Studio')|Out-Null
     return $false
   }finally{$global:DwbShell.Quitting=$false}
 }
@@ -79,14 +79,14 @@ function global:Show-DwbWindow($Window){
           if(-not $settings){throw 'กรุณาตั้งค่า Tunnel ID และบันทึก key ก่อน'}
           if(-not(Get-DwbTunnelProcess)){$null=Start-DwbTunnel $settings.tunnelId $null $true (Find-DwbTunnelClient)}
           $global:DwbShell.AutoConnectDeadline=[DateTime]::UtcNow.AddSeconds(45)
-        }catch{Restore-DwbWindow;[Windows.MessageBox]::Show($_.Exception.Message,'DWB · Start MCP อัตโนมัติ')|Out-Null}
+        }catch{Restore-DwbWindow;[Windows.MessageBox]::Show($_.Exception.Message,'N3zuui · Start MCP อัตโนมัติ')|Out-Null}
       }
     }
   }
   [Windows.Threading.Dispatcher]::PushFrame($frame)
 }
 $menu=New-Object Windows.Forms.ContextMenuStrip
-$open=$menu.Items.Add('เปิด DWB MCP Studio');$open.Add_Click({Restore-DwbWindow})
+$open=$menu.Items.Add('เปิด N3zuui Studio');$open.Add_Click({Restore-DwbWindow})
 $settingsItem=$menu.Items.Add('การเปิดและปิดแอป…');$settingsItem.Add_Click({Restore-DwbWindow;Show-DwbPreferences})
 $hideItem=$menu.Items.Add('ซ่อนไป tray');$hideItem.Add_Click({Hide-DwbWindow})
 $exitItem=$menu.Items.Add('ปิดแอปและหยุด MCP');$exitItem.Add_Click({$null=Exit-DwbApp})
@@ -106,7 +106,7 @@ $timer.Add_Tick({
     elseif($state.state -eq 'stopped' -or [DateTime]::UtcNow -ge $global:DwbShell.AutoConnectDeadline){
       $global:DwbShell.AutoConnectDeadline=$null
       Restore-DwbWindow
-      [Windows.MessageBox]::Show('MCP ยังเชื่อมต่อไม่สำเร็จ กรุณาดูสถานะใน Dashboard หรือตรวจ Tunnel / API key','DWB · Start MCP อัตโนมัติ')|Out-Null
+      [Windows.MessageBox]::Show('MCP ยังเชื่อมต่อไม่สำเร็จ กรุณาดูสถานะใน Dashboard หรือตรวจ Tunnel / API key','N3zuui · Start MCP อัตโนมัติ')|Out-Null
     }
   }
 })
@@ -180,7 +180,7 @@ try {
     }
   }
   if($UiTestReport){if($global:DwbShell.UiFailure){throw $global:DwbShell.UiFailure};[IO.File]::WriteAllText($UiTestReport,'PASS: real Dashboard / Connection / Setup navigation, hide and restore, one shell process.')}
-}catch{if($TestReport -or $UiTestReport){throw};[Windows.MessageBox]::Show($_.Exception.Message,'DWB MCP Studio')|Out-Null}
+}catch{if($TestReport -or $UiTestReport){throw};[Windows.MessageBox]::Show($_.Exception.Message,'N3zuui Studio')|Out-Null}
 finally{
   if($uiTimer){$uiTimer.Stop()};$timer.Stop();$tray.Visible=$false;$tray.Icon.Dispose();$tray.Dispose();$menu.Dispose()
   $global:DwbShell=$null;$wake.Dispose();$mutex.ReleaseMutex();$mutex.Dispose()

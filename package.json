@@ -1,6 +1,6 @@
 {
   "name": "dwb-mcp-studio-core",
-  "version": "0.1.0-beta.19",
+  "version": "0.1.0-beta.20",
   "private": true,
   "description": "Local multi-worker MCP broker for a separately installed Desktop Commander",
   "type": "module",
@@ -61,7 +61,7 @@
     "configure": "node scripts/configure.mjs",
     "doctor": "node scripts/doctor.mjs",
     "test": "npm run typecheck && npm run build && tsx src/request-context-test.ts && tsx src/payload-guard-test.ts && tsx src/worker-circuit-test.ts && tsx src/session-lifecycle-test.ts && tsx src/workspace-binding-test.ts && tsx src/agent-wake-test.ts && tsx src/agent-task-store-test.ts && tsx src/autonomous-agent-runner-test.ts && tsx src/broker-config-test.ts && tsx src/broker-client-test.ts && tsx src/core-hardening-test.ts && npm run test:external-mcp && node scripts/public-core-test.mjs && node scripts/dashboard-test.mjs",
-    "test:external-mcp": "npm run build && tsx src/external-mcp-manager-test.ts && tsx src/external-mcp-store-test.ts && tsx src/external-mcp-controller-test.ts && tsx src/external-mcp-installer-test.ts && node --test scripts/external-mcp-client-test.mjs && tsx src/external-mcp-broker-test.ts && node scripts/test-powershell.mjs mcp-manager-test",
+    "test:external-mcp": "npm run build && tsx src/external-mcp-manager-test.ts && tsx src/external-mcp-store-test.ts && tsx src/external-mcp-controller-test.ts && tsx src/external-mcp-installer-test.ts && node --test scripts/external-mcp-client-test.mjs && tsx src/external-mcp-broker-test.ts && powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File scripts/brand-ui-test.ps1 && node scripts/test-powershell.mjs mcp-manager-test",
     "test:integration": "node scripts/integration-test.mjs",
     "test:setup": "node scripts/test-powershell.mjs setup-test",
     "release": "npm run build:launcher && npm run build && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/release.ps1",

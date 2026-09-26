@@ -1,28 +1,29 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="DWB · OpenAI Tunnel" Width="780" Height="740" MinWidth="620" MinHeight="560"
-        Background="#0E151E" Foreground="#E9F0F7" FontFamily="Leelawadee UI, Segoe UI"
+        Title="N3zuui · OpenAI Tunnel" Width="780" Height="740" MinWidth="620" MinHeight="560"
+        Foreground="#EAFBFF" FontFamily="Leelawadee UI, Segoe UI"
         FontSize="14" WindowStartupLocation="CenterScreen">
+  <Window.Background><RadialGradientBrush Center="0.78,1" GradientOrigin="0.78,1" RadiusX="1.15" RadiusY="1.05"><GradientStop Color="#171A20" Offset="0"/><GradientStop Color="#0D0F13" Offset="0.48"/><GradientStop Color="#08090C" Offset="1"/></RadialGradientBrush></Window.Background>
   <Window.Resources>
     <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style>
     <Style TargetType="Button">
-      <Setter Property="Background" Value="#192B3B"/><Setter Property="Foreground" Value="#E9F0F7"/>
-      <Setter Property="BorderBrush" Value="#365066"/><Setter Property="Padding" Value="16,10"/>
+      <Setter Property="Background" Value="#111419"/><Setter Property="Foreground" Value="#EAFBFF"/>
+      <Setter Property="BorderBrush" Value="#2A3038"/><Setter Property="Padding" Value="16,10"/>
       <Setter Property="Cursor" Value="Hand"/>
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
         <Border x:Name="Surface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="{TemplateBinding Padding}">
           <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
         </Border>
         <ControlTemplate.Triggers>
-          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="BorderBrush" Value="#08B8D2"/></Trigger>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="BorderBrush" Value="#A9F5FF"/><Setter TargetName="Surface" Property="Background" Value="#171A20"/></Trigger>
           <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Surface" Property="BorderBrush" Value="#FFFFFF"/></Trigger>
           <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Surface" Property="Opacity" Value="0.4"/></Trigger>
         </ControlTemplate.Triggers>
       </ControlTemplate></Setter.Value></Setter>
     </Style>
     <Style TargetType="TextBox">
-      <Setter Property="Background" Value="#142331"/><Setter Property="Foreground" Value="#E9F0F7"/>
-      <Setter Property="BorderBrush" Value="#365066"/><Setter Property="CaretBrush" Value="#08B8D2"/>
+      <Setter Property="Background" Value="#0D0F13"/><Setter Property="Foreground" Value="#EAFBFF"/>
+      <Setter Property="BorderBrush" Value="#2A3038"/><Setter Property="CaretBrush" Value="#A9F5FF"/>
       <Setter Property="Padding" Value="12"/><Setter Property="FontSize" Value="15"/>
     </Style>
   </Window.Resources>
@@ -32,22 +33,22 @@
       <Grid.ColumnDefinitions><ColumnDefinition Width="82"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <Image x:Name="Logo" Width="64" Height="64" HorizontalAlignment="Left"/>
       <StackPanel Grid.Column="1" VerticalAlignment="Center">
-        <TextBlock Text="MCP Studio" FontSize="25" FontWeight="SemiBold"/>
-        <TextBlock Text="OPENAI TUNNEL" Foreground="#08B8D2" FontSize="11" Margin="0,4,0,0"/>
+        <TextBlock x:Name="BrandTitle" Text="N3zuui Studio" FontSize="25" FontWeight="SemiBold"/>
+        <TextBlock Text="OPENAI TUNNEL" Foreground="#A9F5FF" FontSize="11" FontWeight="Bold" Margin="0,5,0,0"/>
       </StackPanel>
       <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"><Button x:Name="Dashboard" Content="Dashboard" Margin="0,0,8,0"/><Button x:Name="MachineSetup" Content="ตั้งค่าเครื่อง"/></StackPanel>
     </Grid>
     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
       <StackPanel Margin="0,0,12,0">
         <TextBlock Text="เชื่อมต่อ แล้วเริ่มทำงาน" FontSize="29" FontWeight="SemiBold"/>
-        <TextBlock Text="กรอกข้อมูลจาก OpenAI ครั้งแรก แล้วกด Start MCP" Foreground="#9DB2C5" Margin="0,8,0,22"/>
+        <TextBlock Text="กรอกข้อมูลจาก OpenAI ครั้งแรก แล้วกด Start MCP" Foreground="#8A949E" Margin="0,8,0,22"/>
         <TextBlock Text="Tunnel ID" Margin="0,0,0,7"/>
         <TextBox x:Name="TunnelId" AutomationProperties.Name="Tunnel ID" ToolTip="tunnel_..."/>
         <TextBlock Text="API key" Margin="0,18,0,7"/>
-        <PasswordBox x:Name="ApiKey" AutomationProperties.Name="API key" Background="#142331" Foreground="#E9F0F7" BorderBrush="#365066" Padding="12" FontSize="15"/>
-        <TextBlock x:Name="KeyHint" Text="ใช้ API key ที่มีสิทธิ์เชื่อมต่อ tunnel นี้" Foreground="#9DB2C5" FontSize="12" Margin="0,7,0,0"/>
-        <CheckBox x:Name="RememberKey" Content="จำ API key แบบเข้ารหัสในบัญชี Windows นี้" IsChecked="True" Foreground="#C5D5E4" Margin="0,12,0,18"/>
-        <Border Background="#142331" CornerRadius="10" Padding="14">
+        <PasswordBox x:Name="ApiKey" AutomationProperties.Name="API key" Background="#0D0F13" Foreground="#EAFBFF" BorderBrush="#2A3038" Padding="12" FontSize="15"/>
+        <TextBlock x:Name="KeyHint" Text="ใช้ API key ที่มีสิทธิ์เชื่อมต่อ tunnel นี้" Foreground="#8A949E" FontSize="12" Margin="0,7,0,0"/>
+        <CheckBox x:Name="RememberKey" Content="จำ API key แบบเข้ารหัสในบัญชี Windows นี้" IsChecked="True" Foreground="#C7D4D9" Margin="0,12,0,18"/>
+        <Border Background="#111419" BorderBrush="#2A3038" BorderThickness="1" CornerRadius="11" Padding="14">
           <StackPanel>
             <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
               <TextBlock x:Name="ClientStatus" Text="กำลังค้นหา tunnel-client…" VerticalAlignment="Center" FontSize="13"/>
@@ -56,16 +57,16 @@
             <TextBlock x:Name="ClientPath" Foreground="#8CA4B8" FontSize="11" Margin="0,6,0,0"/>
           </StackPanel>
         </Border>
-        <TextBlock Text="ใช้ Desktop Commander และ tunnel-client ใน external ของ DWB นี้เท่านั้น" FontSize="12" Foreground="#9DB2C5" Margin="0,12,0,0"/>
+        <TextBlock Text="ใช้ Desktop Commander และ tunnel-client ใน external ของ N3zuui นี้เท่านั้น" FontSize="12" Foreground="#8A949E" Margin="0,12,0,0"/>
       </StackPanel>
     </ScrollViewer>
     <StackPanel Grid.Row="2" Margin="0,20,0,0">
-      <Border Height="1" Background="#294050" Margin="0,0,0,14"/>
-      <TextBlock x:Name="Status" Text="พร้อมเริ่ม · กรอก Tunnel ID และ API key" MinHeight="44" Foreground="#9DB2C5" FontSize="13"/>
+      <Border Height="1" Background="#2A3038" Margin="0,0,0,14"/>
+      <TextBlock x:Name="Status" Text="พร้อมเริ่ม · กรอก Tunnel ID และ API key" MinHeight="44" Foreground="#8A949E" FontSize="13"/>
       <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/><ColumnDefinition Width="16"/><ColumnDefinition Width="180"/></Grid.ColumnDefinitions>
-        <TextBlock Text="ปิดหน้านี้ได้หลังเริ่ม MCP&#10;เปิดกลับมาเพื่อดูสถานะหรือ Stop" FontSize="11" Foreground="#8CA4B8" VerticalAlignment="Center"/>
+        <TextBlock Text="ปิดหน้านี้ได้หลังเริ่ม MCP&#10;เปิดกลับมาเพื่อดูสถานะหรือ Stop" FontSize="11" Foreground="#78838D" VerticalAlignment="Center"/>
         <Button x:Name="StopMcp" Grid.Column="1" Content="Stop" IsEnabled="False"/>
-        <Button x:Name="StartMcp" Grid.Column="3" Content="Start MCP  →" Background="#08B8D2" Foreground="#06252E" BorderBrush="#08B8D2" FontWeight="Bold" FontSize="16"/>
+      <Button x:Name="StartMcp" Grid.Column="3" Content="Start MCP  →" Background="#A9F5FF" Foreground="#071014" BorderBrush="#A9F5FF" FontWeight="Bold" FontSize="16"/>
       </Grid>
     </StackPanel>
   </Grid>

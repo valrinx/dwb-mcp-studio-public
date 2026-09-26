@@ -1,6 +1,6 @@
 ﻿function global:Show-DwbPreferences([string]$RegistryPath='HKCU:\Software\Microsoft\Windows\CurrentVersion\Run',[string]$TestReport) {
   [xml]$xaml=@'
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="DWB · การเปิดและปิดแอป" Width="550" SizeToContent="Height" ResizeMode="NoResize" WindowStartupLocation="CenterOwner" Background="#0D151F" Foreground="#E9F0F7" FontFamily="Leelawadee UI, Segoe UI">
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="N3zuui · การเปิดและปิดแอป" Width="550" SizeToContent="Height" ResizeMode="NoResize" WindowStartupLocation="CenterOwner" Background="#070B14" Foreground="#EDF7FF" FontFamily="Leelawadee UI, Segoe UI">
  <Window.Resources>
   <Style TargetType="Button"><Setter Property="Background" Value="#1B3041"/><Setter Property="Foreground" Value="#E9F0F7"/><Setter Property="BorderBrush" Value="#345064"/><Setter Property="Cursor" Value="Hand"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="{TemplateBinding Padding}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border></ControlTemplate></Setter.Value></Setter></Style>
   <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style>
@@ -8,9 +8,9 @@
   <Style TargetType="RadioButton"><Setter Property="Foreground" Value="#E9F0F7"/><Setter Property="Margin" Value="0,10,0,0"/></Style>
  </Window.Resources>
  <StackPanel Margin="28">
-  <TextBlock Text="ให้ DWB ทำงานในแบบที่คุณเลือก" FontSize="22" FontWeight="SemiBold"/>
+  <TextBlock Text="ให้ N3zuui ทำงานในแบบที่คุณเลือก" FontSize="22" FontWeight="SemiBold"/>
   <TextBlock Text="ตอนเข้าสู่ Windows" Foreground="#08B8D2" Margin="0,24,0,0" FontSize="14"/>
-  <CheckBox x:Name="Startup" Content="เปิด DWB พร้อม Windows โดยเริ่มใน tray"/>
+  <CheckBox x:Name="Startup" Content="เปิด N3zuui พร้อม Windows โดยเริ่มใน tray"/>
   <CheckBox x:Name="Connect" Content="Start MCP อัตโนมัติด้วย Tunnel ID และ key ที่บันทึกไว้"/>
   <TextBlock Text="หากยังตั้งค่าไม่ครบ หรือเชื่อมต่อไม่ได้ จะแสดงหน้าต่างให้แก้ไข" Foreground="#89AABE" Margin="20,8,0,0"/>
   <TextBlock Text="เมื่อกด × ปิดหน้าต่าง" Foreground="#08B8D2" Margin="0,24,0,0" FontSize="14"/>

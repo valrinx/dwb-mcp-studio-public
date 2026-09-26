@@ -53,7 +53,7 @@ $resultLabel = Find 'ResultLabel'
 $increase = Find 'Increase'
 $decrease = Find 'Decrease'
 
-$logoPath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\assets\dwb-logo.png'))
+$logoPath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\assets\n3zuui-mark.png'))
 $logo = New-Object Windows.Media.Imaging.BitmapImage
 $logo.BeginInit()
 $logo.CacheOption = [Windows.Media.Imaging.BitmapCacheOption]::OnLoad
@@ -78,7 +78,7 @@ function Update-WorkerStatus {
   $dc=Get-DwbManagedWorkerState
   $tunnel=Get-DwbManagedTunnelState
   $workerStatus.Text='Desktop Commander 0.2.50: ' + $(if($dc.Ready){'พร้อม'}else{'รอติดตั้ง'}) + '  ·  Tunnel 0.0.11: ' + $(if($tunnel.Ready){'พร้อม'}else{'รอติดตั้ง'})
-  if ($script:IsUpgrade -and (-not $dc.Ready -or -not $tunnel.Ready)) { $workerStatus.Text='ตรวจและนำส่วนประกอบจาก DWB เดิมมาใช้เมื่อกดอัปเดต · ติดตั้งเพิ่มเฉพาะที่ขาด' }
+  if ($script:IsUpgrade -and (-not $dc.Ready -or -not $tunnel.Ready)) { $workerStatus.Text='ตรวจและนำส่วนประกอบจาก N3zuui เดิมมาใช้เมื่อกดอัปเดต · ติดตั้งเพิ่มเฉพาะที่ขาด' }
   $workerStatus.Foreground=if($dc.Ready -and $tunnel.Ready){$Green}else{$Muted}
 }
 function Update-Machine {
@@ -94,7 +94,7 @@ function Update-Machine {
     (Find 'MachineDot').Background = $Orange
     $downloadNode.Visibility = 'Visible'
   }
-  if ($script:Machine.NpmReady) { $npmLabel.Text = 'npm พร้อมติดตั้งส่วนประกอบ DWB'; $npmLabel.Foreground = $Muted }
+  if ($script:Machine.NpmReady) { $npmLabel.Text = 'npm พร้อมติดตั้งส่วนประกอบ N3zuui'; $npmLabel.Foreground = $Muted }
   else { $npmLabel.Text = 'ติดตั้ง npm พร้อม Node.js แล้วตรวจซ้ำ'; $npmLabel.Foreground = $Orange }
   Update-WorkerStatus
 }
@@ -214,7 +214,7 @@ try {
   if (Test-Path -LiteralPath $savedPath) {
     $saved = Get-Content -LiteralPath $savedPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $workspaceInput.Text = [string]$saved.workspace
-    (Find 'SetupHeading').Text = 'อัปเดต DWB ของคุณ'
+    (Find 'SetupHeading').Text = 'อัปเดต N3zuui ของคุณ'
     (Find 'SetupDescription').Text = 'ใช้ส่วนประกอบและการตั้งค่าเดิม · ไม่ต้องสร้าง Tunnel หรือผูก connector ใหม่'
     $save.Content = 'อัปเดตและใช้การตั้งค่าเดิม  →'
     $resultLabel.Text = 'Workspace, Tunnel ID และ key ที่เคยบันทึกไว้จะยังอยู่'

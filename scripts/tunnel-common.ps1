@@ -44,15 +44,15 @@ function Stop-DwbTunnel {
   if ($process) {
     # Only the process recorded by this data directory, checked against creation time and image.
     $killer = Start-Process -FilePath 'taskkill.exe' -ArgumentList @('/PID',[string]$process.Id,'/T','/F') -WindowStyle Hidden -Wait -PassThru
-    if ($killer.ExitCode -ne 0 -and (Get-DwbTunnelProcess)) { throw 'Could not stop the DWB tunnel process.' }
+    if ($killer.ExitCode -ne 0 -and (Get-DwbTunnelProcess)) { throw 'Could not stop the N3zuui tunnel process.' }
   }
 }
 function Start-DwbTunnel([string]$TunnelId, [Security.SecureString]$ApiKey, [bool]$RememberKey, [string]$Executable) {
   $TunnelId = $TunnelId.Trim()
   if ($TunnelId -notmatch '^tunnel_[A-Za-z0-9_-]+$') { throw 'กรอก Tunnel ID ที่ขึ้นต้นด้วย tunnel_ โดยไม่มีช่องว่าง' }
   $paths=Get-DwbExternalPaths
-  if ($Executable -ne $paths.Tunnel -or -not (Get-DwbManagedTunnelState).Ready) { throw 'กด ตั้งค่าเครื่อง เพื่อติดตั้ง tunnel-client ในโฟลเดอร์ DWB นี้ก่อน' }
-  if (-not (Get-DwbManagedWorkerState).Ready -or (Get-Content -LiteralPath (Get-DwbConfigPath) -Raw | ConvertFrom-Json).workerEntry -ne $paths.Worker) { throw 'กด ตั้งค่าเครื่อง เพื่อเตรียม Desktop Commander ของ DWB นี้ก่อน' }
+  if ($Executable -ne $paths.Tunnel -or -not (Get-DwbManagedTunnelState).Ready) { throw 'กด ตั้งค่าเครื่อง เพื่อติดตั้ง tunnel-client ในโฟลเดอร์ N3zuui นี้ก่อน' }
+  if (-not (Get-DwbManagedWorkerState).Ready -or (Get-Content -LiteralPath (Get-DwbConfigPath) -Raw | ConvertFrom-Json).workerEntry -ne $paths.Worker) { throw 'กด ตั้งค่าเครื่อง เพื่อเตรียม Desktop Commander ของ N3zuui นี้ก่อน' }
   $Executable = [IO.Path]::GetFullPath($Executable)
   $machine = Get-DwbMachineState
   $appRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))

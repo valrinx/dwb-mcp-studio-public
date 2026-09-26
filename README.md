@@ -1,8 +1,8 @@
-# DWB MCP Studio Core
+# N3zuui Studio Core
 
 [MCP Server Manager: คู่มือใช้งาน](docs/MCP-SERVER-MANAGER-TH.md) · [แผนการพัฒนา](docs/MCP-MANAGER-PLAN-TH.md)
 
-Windows Beta · 0.1.0-beta.19
+Windows Beta · 0.1.0-beta.20
 
 ## ดาวน์โหลดและเริ่มใช้
 
