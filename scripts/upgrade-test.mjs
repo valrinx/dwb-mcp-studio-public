@@ -21,9 +21,20 @@ const config = join(root, 'config.json');
 await save(config, { workerEntry: join(worker, 'dist/index.js') });
 assert.equal(await previousInstall(config, next), null, 'must reject other apps');
 await save(join(old, 'package.json'), { name: 'dwb-mcp-studio-core' });
-await save(join(next, 'package.json'), { name: 'dwb-mcp-studio-core' });
-assert.equal(await previousInstall(config, next), old);
+await save(join(next, 'package.json'), { name: 'n3zuui-mcp-studio-core' });
+assert.equal(
+  await previousInstall(config, next),
+  old,
+  'new N3zuui release must recognize legacy DWB installations',
+);
 assert.equal(await previousInstall(config, old), null);
+await save(join(old, 'package.json'), { name: 'n3zuui-mcp-studio-core' });
+assert.equal(
+  await previousInstall(config, next),
+  old,
+  'future N3zuui releases must recognize N3zuui installations',
+);
+await save(join(old, 'package.json'), { name: 'dwb-mcp-studio-core' });
 assert.deepEqual(await migrate(config, next), ['desktop-commander']);
 assert.equal(
   await readFile(

@@ -19,7 +19,7 @@ function Stop-DwbRuntimeForSetup([string]$Node) {
     if(-not $entry.EndsWith($suffix,[StringComparison]::OrdinalIgnoreCase)){throw 'Cannot verify the legacy installation. Finish its work and restart Windows once before updating.'}
     $previous=$entry.Substring(0,$entry.Length-$suffix.Length)
     $package=Get-Content -LiteralPath (Join-Path $previous 'package.json') -Raw | ConvertFrom-Json
-    if($package.name -ne 'dwb-mcp-studio-core'){throw 'The running installation is not a public DWB core.'}
+    if($package.name -notin @('dwb-mcp-studio-core','n3zuui-mcp-studio-core')){throw 'The running installation is not a public N3zuui core.'}
     $brokerScript=Join-Path $previous 'dist\broker-server.js'
     $runtimePid=[int]$snapshot.broker.brokerPid
     $process=Get-Process -Id $runtimePid -ErrorAction Stop

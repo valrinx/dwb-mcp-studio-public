@@ -31,7 +31,9 @@ test('broker client reconnects in the background and resumes its session', async
         const request = JSON.parse(line) as { id: string; method: string; params?: any };
         if (request.method !== 'hello') continue;
         connections += 1;
-        sessions.push(typeof request.params?.sessionId === 'string' ? request.params.sessionId : null);
+        sessions.push(
+          typeof request.params?.sessionId === 'string' ? request.params.sessionId : null,
+        );
         socket.write(
           JSON.stringify({
             id: request.id,

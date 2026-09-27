@@ -77,7 +77,7 @@ async function npmInstall(stage: string, packageName: string, version: string): 
   if (result.error || result.status !== 0)
     throw new Error(
       `Pinned npm install failed${result.status === null ? '' : ` (exit ${result.status})`}`,
-  );
+    );
 }
 
 async function prepareGitHubRepository(
@@ -97,7 +97,9 @@ async function prepareGitHubRepository(
     maxBuffer: 4 * 1024 * 1024,
   });
   if (clone.error || clone.status !== 0)
-    throw new Error('Could not download the GitHub repository. Check Git, the URL, and network access.');
+    throw new Error(
+      'Could not download the GitHub repository. Check Git, the URL, and network access.',
+    );
 
   const install = spawnSync(
     process.execPath,
@@ -165,7 +167,10 @@ function parseGitHubRepository(input: string): GitHubRepository {
     throw new Error('The repository branch or tag name is invalid.');
 
   const identity = `${owner.toLowerCase()}/${repo.toLowerCase()}`;
-  const slug = repo.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^[^a-z0-9]+/, '');
+  const slug = repo
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^[^a-z0-9]+/, '');
   const suffix = createHash('sha256').update(identity).digest('hex').slice(0, 8);
   const id = `${(slug || 'mcp').slice(0, 31)}-${suffix}`;
   return { id, owner, repo, repositoryUrl: `https://github.com/${owner}/${repo}`, ref };
@@ -175,7 +180,8 @@ function githubInstallTarget(rootDir: string, repository: GitHubRepository): str
   const installRoot = resolve(rootDir, 'mcp-servers', 'installations', 'github', repository.id);
   const refKey = createHash('sha256').update(repository.ref).digest('hex').slice(0, 12);
   const target = resolve(installRoot, refKey);
-  if (!isWithin(installRoot, target)) throw new Error('GitHub installation path escaped its owner directory');
+  if (!isWithin(installRoot, target))
+    throw new Error('GitHub installation path escaped its owner directory');
   return target;
 }
 
@@ -192,7 +198,9 @@ function packageBin(manifest: Record<string, unknown>, packageName: string): str
     candidates.find(([name]) => name === packageName || name === primaryName) ??
     (candidates.length === 1 ? candidates[0] : undefined);
   if (!selected || typeof selected[1] !== 'string')
-    throw new Error('This repository has multiple executables and DWB could not choose an MCP entry automatically.');
+    throw new Error(
+      'This repository has multiple executables and N3zuui could not choose an MCP entry automatically.',
+    );
   const entryPoint = selected[1];
   if (
     isAbsolute(entryPoint) ||
@@ -333,7 +341,8 @@ export class ExternalMcpInstaller {
       if (!isWithin(stage, entryPoint))
         throw new Error('Repository executable escaped its installation directory.');
       const entry = await stat(entryPoint).catch(() => null);
-      if (!entry?.isFile()) throw new Error('The repository executable was not produced by its build.');
+      if (!entry?.isFile())
+        throw new Error('The repository executable was not produced by its build.');
 
       const marker: GitHubInstallMarker = {
         version: 1,

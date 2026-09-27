@@ -54,7 +54,7 @@ const snapshot = (overrides: Partial<AutonomousAgentSnapshot> = {}): AutonomousA
   ...overrides,
 });
 
-test('builds a local Codex worker command with the DWB MCP server', () => {
+test('builds a local Codex worker command with the N3zuui MCP server', () => {
   const command = buildAutonomousAgentCommand(
     {
       name: 'Planner',
@@ -69,10 +69,15 @@ test('builds a local Codex worker command with the DWB MCP server', () => {
   );
 
   assert.equal(command.executable, 'codex.exe');
-  assert.deepEqual(command.args.slice(0, 4), ['exec', '--ephemeral', '--json', '--skip-git-repo-check']);
+  assert.deepEqual(command.args.slice(0, 4), [
+    'exec',
+    '--ephemeral',
+    '--json',
+    '--skip-git-repo-check',
+  ]);
   assert.ok(command.args.includes('--approve-for-me'));
-  assert.ok(command.args.some((arg) => arg.startsWith('mcp_servers.dwb_core.command=')));
-  const mcpArgs = command.args.find((arg) => arg.includes('mcp_servers.dwb_core.args='));
+  assert.ok(command.args.some((arg) => arg.startsWith('mcp_servers.n3zuui_core.command=')));
+  const mcpArgs = command.args.find((arg) => arg.includes('mcp_servers.n3zuui_core.args='));
   assert.ok(mcpArgs);
   assert.match(mcpArgs, /dwb.*scripts.*start\.mjs/);
   assert.match(mcpArgs, /config\.json/);
@@ -82,7 +87,7 @@ test('builds a local Codex worker command with the DWB MCP server', () => {
   assert.match(command.prompt, /wait/);
   assert.match(command.prompt, /autonomous worker session/i);
   assert.match(command.prompt, /cross-chat team/i);
-  assert.match(command.prompt, /DWB broker tools for all cross-agent communication/i);
+  assert.match(command.prompt, /N3zuui broker tools for all cross-agent communication/i);
 });
 
 test('starts one autonomous worker for a queued task and does not duplicate it', () => {

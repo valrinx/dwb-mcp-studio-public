@@ -14,7 +14,13 @@ test('broker loads worker and autonomous settings from the saved config', () => 
     configFile,
     JSON.stringify({ workerEntry, workerCap: 7, basePolicy, autonomousAgents: true }),
   );
-  const names = ['DWB_CONFIG_FILE', 'DWB_WORKER_ENTRY', 'DWB_WORKER_CAP', 'DWB_BASE_DC_CONFIG', 'DWB_AUTONOMOUS_AGENTS'];
+  const names = [
+    'DWB_CONFIG_FILE',
+    'DWB_WORKER_ENTRY',
+    'DWB_WORKER_CAP',
+    'DWB_BASE_DC_CONFIG',
+    'DWB_AUTONOMOUS_AGENTS',
+  ];
   const saved = Object.fromEntries(names.map((name) => [name, process.env[name]]));
   try {
     for (const name of names) delete process.env[name];

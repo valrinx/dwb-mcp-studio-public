@@ -13,7 +13,7 @@ public static class DwbWindowIdentity {
  [DllImport("shell32.dll")] public static extern int GetCurrentProcessExplicitAppUserModelID(out IntPtr id);
 }
 '@
-$null=[DwbWindowIdentity]::SetCurrentProcessExplicitAppUserModelID('DevWithBebz.DwbMcpStudio')
+$null=[DwbWindowIdentity]::SetCurrentProcessExplicitAppUserModelID('N3zuui.Studio')
 $hash=[Security.Cryptography.SHA256]::Create()
 try{$identity=([BitConverter]::ToString($hash.ComputeHash([Text.Encoding]::UTF8.GetBytes(($PSScriptRoot+'|'+(Get-DwbDataDirectory)).ToLowerInvariant())))).Replace('-','').Substring(0,24)}finally{$hash.Dispose()}
 $wake=New-Object Threading.EventWaitHandle($false,[Threading.EventResetMode]::AutoReset,('Local\DWB-Studio-Wake-'+$identity))
@@ -138,7 +138,7 @@ try {
   $timer.Start()
   if($TestReport){
     $testWindow=New-Object Windows.Window
-    $testWindow.Width=300;$testWindow.Height=160;$testWindow.Title='DWB shell test'
+    $testWindow.Width=300;$testWindow.Height=160;$testWindow.Title='N3zuui shell test'
     $testWindow.Left=-20000;$testWindow.Top=-20000;$testWindow.WindowStartupLocation='Manual'
     Register-DwbWindow $testWindow
     $testWindow.Show()
@@ -148,12 +148,12 @@ try {
     if(-not $testWindow.IsVisible){throw 'Tray restore failed.'}
     $testWindow.WindowState='Minimized'
     if($testWindow.IsVisible){throw 'Minimize did not hide to tray.'}
-    $second=Start-Process -FilePath (Join-Path $PSScriptRoot '..\DWB MCP Studio.exe') -WindowStyle Hidden -PassThru
+    $second=Start-Process -FilePath (Join-Path $PSScriptRoot '..\N3zuui Studio.exe') -WindowStyle Hidden -PassThru
     $deadline=[DateTime]::UtcNow.AddSeconds(15)
     while((-not $second.HasExited -or -not $testWindow.IsVisible) -and [DateTime]::UtcNow -lt $deadline){$testWindow.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::Background);Start-Sleep -Milliseconds 50}
     if(-not $second.HasExited -or -not $testWindow.IsVisible){throw 'Second launch did not restore the existing window.'}
     $pointer=[IntPtr]::Zero;$null=[DwbWindowIdentity]::GetCurrentProcessExplicitAppUserModelID([ref]$pointer)
-    try{if([Runtime.InteropServices.Marshal]::PtrToStringUni($pointer) -ne 'DevWithBebz.DwbMcpStudio'){throw 'Taskbar identity was not set.'}}finally{[Runtime.InteropServices.Marshal]::FreeCoTaskMem($pointer)}
+    try{if([Runtime.InteropServices.Marshal]::PtrToStringUni($pointer) -ne 'N3zuui.Studio'){throw 'Taskbar identity was not set.'}}finally{[Runtime.InteropServices.Marshal]::FreeCoTaskMem($pointer)}
     $global:DwbShell.Preferences.minimizeToTray=$false
     $testWindow.WindowState='Minimized'
     if(-not $testWindow.IsVisible -or -not $testWindow.ShowInTaskbar){throw 'Normal taskbar minimize failed'}

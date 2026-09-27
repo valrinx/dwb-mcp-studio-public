@@ -8,7 +8,7 @@ $archive=[IO.Compression.ZipFile]::OpenRead([IO.Path]::GetFullPath($Zip))
 try {
   foreach($entry in $archive.Entries){
     if($entry.FullName -match '(^|/)(node_modules|external|runtime|logs|data|\.git)/|\.dpapi$|(^|/)(config|mcp-client)\.json$'){throw ('Private/runtime file in archive: '+$entry.FullName)}
-    if($entry.FullName -match '\.exe$' -and $entry.FullName -ne 'DWB MCP Studio.exe'){throw ('Foreign executable in archive: '+$entry.FullName)}
+    if($entry.FullName -match '\.exe$' -and $entry.FullName -ne 'N3zuui Studio.exe'){throw ('Foreign executable in archive: '+$entry.FullName)}
   }
 }finally{$archive.Dispose()}
 Expand-Archive -LiteralPath $Zip -DestinationPath $current

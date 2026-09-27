@@ -14,7 +14,7 @@ function Get-DwbExternalPaths {
 function Assert-DwbExternalPath([string]$Path) {
   $root = (Get-DwbExternalPaths).Root
   $full = [IO.Path]::GetFullPath($Path)
-  if ($full -ne $root -and -not $full.StartsWith($root + '\',[StringComparison]::OrdinalIgnoreCase)) { throw 'External installation must stay inside this DWB folder.' }
+  if ($full -ne $root -and -not $full.StartsWith($root + '\',[StringComparison]::OrdinalIgnoreCase)) { throw 'External installation must stay inside this N3zuui folder.' }
   $current=$full
   while ($current.Length -ge $root.Length) {
     if (Test-Path -LiteralPath $current) {
@@ -58,7 +58,7 @@ function Get-DwbManagedTunnelState {
   $paths=Get-DwbExternalPaths
   try {
     Assert-DwbExternalPath $paths.Tunnel
-    if (-not (Test-Path -LiteralPath $paths.Tunnel -PathType Leaf)) { throw 'Tunnel client is not installed in this DWB folder.' }
+    if (-not (Test-Path -LiteralPath $paths.Tunnel -PathType Leaf)) { throw 'Tunnel client is not installed in this N3zuui folder.' }
     $info=New-Object Diagnostics.ProcessStartInfo
     $info.FileName=$paths.Tunnel; $info.Arguments='--version'
     $info.UseShellExecute=$false; $info.CreateNoWindow=$true
@@ -68,7 +68,7 @@ function Get-DwbManagedTunnelState {
       $output=$process.StandardOutput.ReadToEndAsync(); $errors=$process.StandardError.ReadToEndAsync()
       if (-not $process.WaitForExit(5000)) { $process.Kill(); throw 'Tunnel version check timed out.' }
       $version=$output.GetAwaiter().GetResult().Trim()
-      if ($process.ExitCode -ne 0 -or $version -notmatch '^0\.0\.11(?:\+|\s|$)') { throw 'This DWB version requires tunnel-client 0.0.11.' }
+      if ($process.ExitCode -ne 0 -or $version -notmatch '^0\.0\.11(?:\+|\s|$)') { throw 'This N3zuui version requires tunnel-client 0.0.11.' }
       return [pscustomobject]@{Ready=$true;Version=$version;Entry=$paths.Tunnel;Message='Ready'}
     } finally { $process.Dispose() }
   } catch { return [pscustomobject]@{Ready=$false;Entry=$paths.Tunnel;Message=$_.Exception.Message} }

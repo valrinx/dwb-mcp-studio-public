@@ -5,7 +5,7 @@ $testRoot=Join-Path $project ('logs\runtime-upgrade-'+[Guid]::NewGuid().ToString
 $legacy=Join-Path $testRoot 'legacy install'
 $null=New-Item -ItemType Directory -Path $legacy -Force
 Copy-Item -LiteralPath (Join-Path $project 'dist') -Destination $legacy -Recurse
-[IO.File]::WriteAllText((Join-Path $legacy 'package.json'),'{"name":"dwb-mcp-studio-core","version":"0.1.0-beta.9","type":"module"}')
+$legacyPackage=Join-Path $legacy 'package.json'
 $env:DWB_DATA_DIR=Join-Path $testRoot 'user data'
 $env:DWB_CONFIG_FILE=Join-Path $env:DWB_DATA_DIR 'config.json'
 $null=New-Item -ItemType Directory -Path $env:DWB_DATA_DIR -Force
@@ -26,7 +26,9 @@ socket.write(JSON.stringify(m.method==='prepare_upgrade'?{id:m.id,ok:false,error
 '@
 [IO.File]::WriteAllText((Join-Path $legacy 'dist\broker-server.js'),$fixture)
 $node=Get-DwbNode
-foreach($mode in @('legacy','modern-busy')){
+foreach($packageName in @('dwb-mcp-studio-core','n3zuui-mcp-studio-core')){
+  [IO.File]::WriteAllText($legacyPackage,(ConvertTo-Json @{name=$packageName;version='0.1.0-beta.9';type='module'} -Compress))
+  foreach($mode in @('legacy','modern-busy')){
   $ready=Join-Path $env:DWB_DATA_DIR 'ready'
   if(Test-Path -LiteralPath $ready){Remove-Item -LiteralPath $ready}
   $arguments=(ConvertTo-DwbArgument (Join-Path $legacy 'dist\broker-server.js'))+' '+$mode
@@ -47,5 +49,6 @@ foreach($mode in @('legacy','modern-busy')){
     }
     if((Get-FileHash -LiteralPath $env:DWB_CONFIG_FILE).Hash -ne $before){throw 'Runtime preflight changed saved configuration'}
   }finally{$child.Refresh();if(-not $child.HasExited){$child.Kill();$child.WaitForExit()};$child.Dispose()}
+  }
 }
 Write-Output 'RUNTIME_UPGRADE_PASS: verified empty legacy process retired, busy runtime retained, saved configuration unchanged.'

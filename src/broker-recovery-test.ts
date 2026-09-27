@@ -81,7 +81,7 @@ try {
     brokerPid,
     'Broker PID should change after crash recovery',
   );
-  assert.equal(after.sessionId, sessionId, 'Adapter should reclaim persisted DWB session ID');
+  assert.equal(after.sessionId, sessionId, 'Adapter should reclaim persisted N3zuui session ID');
   brokerPid = after.broker.brokerPid;
 
   const stale = await client.callTool({

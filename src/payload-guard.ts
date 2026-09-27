@@ -362,7 +362,7 @@ export class PayloadGuard {
         ? `Raw MCP result archived locally: ${archivePath}`
         : `Redacted MCP result archived locally: ${archivePath}`;
     const lines = [
-      'DWB Payload Guard intercepted an oversized MCP response.',
+      'N3zuui Payload Guard intercepted an oversized MCP response.',
       `Tool: ${tool}`,
       `Original: ${humanBytes(originalBytes)}; forward budget: ${humanBytes(this.config.maxBytes)}.`,
       archiveLine,

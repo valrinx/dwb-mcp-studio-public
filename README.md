@@ -2,13 +2,18 @@
 
 [MCP Server Manager: คู่มือใช้งาน](docs/MCP-SERVER-MANAGER-TH.md) · [แผนการพัฒนา](docs/MCP-MANAGER-PLAN-TH.md)
 
-Windows Beta · 0.1.0-beta.22
+Windows Beta · 0.1.0-beta.24
+
+### ปรับปรุงใน beta.24
+
+- รีแบรนด์แอปและ release เป็น **N3zuui Studio** พร้อม launcher และ MCP client entry ชื่อใหม่
+- อัปเกรด installation รุ่น DWB เดิมได้ โดยย้าย Startup และ MCP client entry ให้เอง; คงชื่อ MCP tools, environment variables และ data folder เดิมเพื่อรักษาการเชื่อมต่อและข้อมูล
 
 ## ดาวน์โหลดและเริ่มใช้
 
-- **ใช้ Git:** clone repository นี้ แล้วเปิด `DWB MCP Studio.exe` ในโฟลเดอร์ที่ clone มา
-- **ดาวน์โหลด source ZIP:** แตกไฟล์ แล้วเปิด `DWB MCP Studio.exe` ได้เหมือนกัน
-- **ใช้แพ็กที่ build แล้ว:** ดาวน์โหลด ZIP ของ DWB จากหน้า Releases แล้วเปิด `DWB MCP Studio.exe`
+- **ใช้ Git:** clone repository นี้ แล้วเปิด `N3zuui Studio.exe` ในโฟลเดอร์ที่ clone มา
+- **ดาวน์โหลด source ZIP:** แตกไฟล์ แล้วเปิด `N3zuui Studio.exe` ได้เหมือนกัน
+- **ใช้แพ็กที่ build แล้ว:** ดาวน์โหลด ZIP ของ N3zuui จากหน้า Releases แล้วเปิด `N3zuui Studio.exe`
 
 Setup เตรียมโปรแกรมจาก source ให้เองเมื่อยังไม่มี `dist` และดาวน์โหลด Desktop Commander กับ tunnel-client ลง `external` ของโฟลเดอร์นี้ หลังติดตั้ง กรอก **Tunnel ID + API key → Start MCP** ต้องมี Node.js 22.16 ขึ้นไปพร้อม npm
 
@@ -22,7 +27,7 @@ Setup เตรียมโปรแกรมจาก source ให้เอง
 
 ### ทำงานหลาย Agent ใน Workspace เดียว
 
-DWB รองรับ MCP session หลายตัวที่ bind workspace เดียวกัน พร้อม task board สำหรับแยกงานและจองขอบเขตไฟล์ แต่ละ agent ลงทะเบียนผ่าน `dwb_agent` แล้ว Main Agent ใช้ `dwb_task action=delegate` เพื่อส่งงานไปยัง agent ในแชทอื่นตาม role/capability หรือระบุ `to_agent_id` ตรง ๆ ได้ งานที่ถูกส่งจะมี notification `task_assigned` และ ack `task_assignment_ack`; เมื่อ complete agent สามารถส่ง summary, changed files, ผลทดสอบ และ result ให้ agent ถัดไปอ่านด้วย `dwb_task action=handoff` ได้ หากมี task ต่อเนื่องที่ถูก dispatch ให้ agent อื่น broker จะส่ง notification อัตโนมัติผ่าน `dwb_agent action=inbox` และ agent ปลายทางตอบรับด้วย `dwb_agent action=ack` งานที่ระบุ role/capability จะถูก dispatch ให้ agent ที่ตรงเงื่อนไขโดย broker การ claim task ที่มีขอบเขตไฟล์ทับกับ task ที่กำลังทำอยู่จะถูกปฏิเสธ และ agent จะถูกบล็อกเมื่อพยายามเขียนไฟล์นอก scope ของ task ตัวเอง ระบบมี heartbeat/lease สำหรับคืนงานเมื่อ agent หลุด; ถ้า session ยังเชื่อมอยู่ broker จะปลุก agent ที่ถูกพักและส่งงานค้างต่อให้เอง และ client จะ reconnect broker เบื้องหลังโดยใช้ session เดิม หากไม่มีแชท worker ที่เชื่อมอยู่และเปิด `autonomousAgents` broker จะเปิด Local Codex worker แบบ `--ephemeral` ตาม role ให้เอง ดูตัวอย่างเต็มใน [คู่มือ Multi-Agent](docs/MULTI-AGENT-TH.md)
+N3zuui รองรับ MCP session หลายตัวที่ bind workspace เดียวกัน พร้อม task board สำหรับแยกงานและจองขอบเขตไฟล์ แต่ละ agent ลงทะเบียนผ่าน `dwb_agent` แล้ว Main Agent ใช้ `dwb_task action=delegate` เพื่อส่งงานไปยัง agent ในแชทอื่นตาม role/capability หรือระบุ `to_agent_id` ตรง ๆ ได้ งานที่ถูกส่งจะมี notification `task_assigned` และ ack `task_assignment_ack`; เมื่อ complete agent สามารถส่ง summary, changed files, ผลทดสอบ และ result ให้ agent ถัดไปอ่านด้วย `dwb_task action=handoff` ได้ หากมี task ต่อเนื่องที่ถูก dispatch ให้ agent อื่น broker จะส่ง notification อัตโนมัติผ่าน `dwb_agent action=inbox` และ agent ปลายทางตอบรับด้วย `dwb_agent action=ack` งานที่ระบุ role/capability จะถูก dispatch ให้ agent ที่ตรงเงื่อนไขโดย broker การ claim task ที่มีขอบเขตไฟล์ทับกับ task ที่กำลังทำอยู่จะถูกปฏิเสธ และ agent จะถูกบล็อกเมื่อพยายามเขียนไฟล์นอก scope ของ task ตัวเอง ระบบมี heartbeat/lease สำหรับคืนงานเมื่อ agent หลุด; ถ้า session ยังเชื่อมอยู่ broker จะปลุก agent ที่ถูกพักและส่งงานค้างต่อให้เอง และ client จะ reconnect broker เบื้องหลังโดยใช้ session เดิม หากไม่มีแชท worker ที่เชื่อมอยู่และเปิด `autonomousAgents` broker จะเปิด Local Codex worker แบบ `--ephemeral` ตาม role ให้เอง ดูตัวอย่างเต็มใน [คู่มือ Multi-Agent](docs/MULTI-AGENT-TH.md)
 
 ### ปรับปรุงใน beta.19
 
@@ -60,9 +65,9 @@ DWB รองรับ MCP session หลายตัวที่ bind workspace
 
 ### ปรับปรุงใน beta.12
 
-- เปิด **DWB MCP Studio.exe** อันเดียว: Setup, Dashboard และตั้งค่า Tunnel อยู่ในแอปเดียวกัน
-- ใช้โลโก้ DWB สำหรับไอคอนเปิดโปรแกรม หน้าต่าง taskbar และถาดไอคอนข้างนาฬิกา
-- กด × หรือย่อเพื่อซ่อนลงถาดไอคอน คลิกไอคอน DWB เพื่อเรียกกลับ (Windows อาจเก็บไว้ใต้ลูกศร ^)
+- เปิด **N3zuui Studio.exe** อันเดียว: Setup, Dashboard และตั้งค่า Tunnel อยู่ในแอปเดียวกัน
+- ใช้โลโก้ N3zuui สำหรับไอคอนเปิดโปรแกรม หน้าต่าง taskbar และถาดไอคอนข้างนาฬิกา
+- กด × หรือย่อเพื่อซ่อนลงถาดไอคอน คลิกไอคอน N3zuui เพื่อเรียกกลับ (Windows อาจเก็บไว้ใต้ลูกศร ^)
 - เปิดซ้ำจะเรียกหน้าต่างเดิมของโฟลเดอร์โปรแกรมนั้นกลับมา
 - คลิกขวาที่ไอคอนถาด → **ออกจากหน้าควบคุม (MCP ยังทำงาน)** เพื่อปิดหน้า UI จริง ๆ; กด Stop ใน Dashboard เมื่อต้องการหยุด tunnel
 - การตั้งค่าและส่วนประกอบเดิมย้ายตามขั้นตอนอัปเดต beta.11 ได้
@@ -70,23 +75,23 @@ DWB รองรับ MCP session หลายตัวที่ bind workspace
 ### ปรับปรุงใน beta.10
 
 - เพิ่ม **Core Dashboard** สำหรับดู Tunnel, Broker, worker, workspace, session, คิวและเหตุการณ์ล่าสุด
-- เปิด `DWB MCP Studio.exe` แล้วใช้ Start/Stop และตั้งค่าจากหน้าเดียว
+- เปิด `N3zuui Studio.exe` แล้วใช้ Start/Stop และตั้งค่าจากหน้าเดียว
 - รีเฟรชทุก 3 วินาทีโดยไม่สร้าง session/worker เพิ่ม อ่าน [วิธีใช้ Dashboard](docs/DASHBOARD.md)
 
 ![Core Dashboard](docs/dashboard.png)
 
 ### ปรับปรุงใน beta.9
 
-- Setup ดาวน์โหลดส่วนประกอบลง `external` ของ DWB นี้ พร้อมตรวจรุ่นและ checksum
+- Setup ดาวน์โหลดส่วนประกอบลง `external` ของ N3zuui นี้ พร้อมตรวจรุ่นและ checksum
 - ยกเลิกการค้นหา tunnel-client จาก PATH และการเลือก Desktop Commander จากแอปอื่น
 - ตั้ง path ให้อัตโนมัติ แล้วเข้าสู่หน้า Tunnel ID + API key → Start MCP
 
 ### ปรับปรุงใน beta.8
 
 - หลังตั้งค่าเครื่อง ใช้เพียง **Tunnel ID + API key → Start MCP** โปรแกรมสร้าง config และเปิด tunnel-client ที่ติดตั้งไว้ให้เอง
-- เปิด `DWB MCP Studio.exe` ครั้งถัดไป เพื่อ Start/Stop และดูสถานะ ไม่ต้องแก้ JSON/YAML หรือเขียน MCP command
+- เปิด `N3zuui Studio.exe` ครั้งถัดไป เพื่อ Start/Stop และดูสถานะ ไม่ต้องแก้ JSON/YAML หรือเขียน MCP command
 - ค้นหา tunnel-client จาก PATH และตำแหน่งติดตั้งทั่วไป หากไม่พบเลือกไฟล์เพียงครั้งแรก
-- จำ API key ด้วย Windows DPAPI สำหรับบัญชีผู้ใช้ปัจจุบัน เลือกไม่จำได้ ไม่ใส่ key ลง profile/command line และไม่ส่งต่อไปยัง DWB broker/worker
+- จำ API key ด้วย Windows DPAPI สำหรับบัญชีผู้ใช้ปัจจุบัน เลือกไม่จำได้ ไม่ใส่ key ลง profile/command line และไม่ส่งต่อไปยัง N3zuui broker/worker
 
 ### ปรับปรุงใน beta.7
 
@@ -120,7 +125,7 @@ DWB รองรับ MCP session หลายตัวที่ bind workspace
 ```text
 MCP client / external tunnel
   ├─ stdio adapter A ─┐
-  ├─ stdio adapter B ─┼─ DWB Broker ─┬─ worker A
+  ├─ stdio adapter B ─┼─ N3zuui Broker ─┬─ worker A
   └─ stdio adapter C ─┘             ├─ worker B
                                    └─ worker C
 ```
@@ -129,32 +134,32 @@ MCP client / external tunnel
 
 ต้องมี Windows x64/ARM64 และ [Node.js](https://nodejs.org/en/download) 22.16 ขึ้นไปพร้อม npm จากนั้น:
 
-1. แตก ZIP ไปยังโฟลเดอร์ที่คุณเขียนไฟล์ได้ แล้วเปิด `DWB MCP Studio.exe`
+1. แตก ZIP ไปยังโฟลเดอร์ที่คุณเขียนไฟล์ได้ แล้วเปิด `N3zuui Studio.exe`
 2. เลือกโฟลเดอร์งานและจำนวน worker แล้วกด **ติดตั้งและเตรียมใช้งาน**
-3. Setup ดาวน์โหลด Desktop Commander **0.2.50** จาก npm และ tunnel-client **0.0.11** จาก release ของ OpenAI ลง `external` ของ DWB นี้ ตรวจ checksum ของ tunnel แล้วตั้ง path ให้เอง ไม่มีช่องเลือกโปรแกรมจากแอปอื่น
+3. Setup ดาวน์โหลด Desktop Commander **0.2.50** จาก npm และ tunnel-client **0.0.11** จาก release ของ OpenAI ลง `external` ของ N3zuui นี้ ตรวจ checksum ของ tunnel แล้วตั้ง path ให้เอง ไม่มีช่องเลือกโปรแกรมจากแอปอื่น
 4. หน้า Dashboard จะเปิดขึ้น กด **Start MCP** เพื่อกรอก **Tunnel ID + API key** ครั้งแรก หรือกด **ตั้งค่า Tunnel / API key**
 5. ใน ChatGPT ที่เชื่อม tunnel นี้ เรียก `dwb_broker_status` และ `dwb_session_status` เพื่อทดสอบครบเส้นทาง
 
 ```text
-DWB-MCP-Studio/
-├─ DWB MCP Studio.exe
+N3zuui-Studio/
+├─ N3zuui Studio.exe
 ├─ scripts/
 └─ external/
    ├─ desktop-commander/
    └─ tunnel-client/
 ```
 
-ครั้งต่อไปเปิด `DWB MCP Studio.exe` แล้วกด Start ได้เลย หากเลือกจำ key จะเก็บแบบเข้ารหัสด้วยบัญชี Windows นี้ ค่าเริ่มต้นเมื่อปิดหน้าต่างจะซ่อนลง tray โดย tunnel ยังทำงาน เลือกเปิดพร้อม Windows / Start MCP อัตโนมัติ หรือเปลี่ยนให้ปุ่ม × ปิดแอปและหยุด MCP ได้ใน **การเปิดและปิดแอป**
+ครั้งต่อไปเปิด `N3zuui Studio.exe` แล้วกด Start ได้เลย หากเลือกจำ key จะเก็บแบบเข้ารหัสด้วยบัญชี Windows นี้ ค่าเริ่มต้นเมื่อปิดหน้าต่างจะซ่อนลง tray โดย tunnel ยังทำงาน เลือกเปิดพร้อม Windows / Start MCP อัตโนมัติ หรือเปลี่ยนให้ปุ่ม × ปิดแอปและหยุด MCP ได้ใน **การเปิดและปิดแอป**
 
-โปรแกรมที่ติดตั้งไว้ใน PATH หรือโฟลเดอร์อื่นจะไม่ถูกนำมาใช้ใน Setup/Start MCP ของ DWB ไม่ดาวน์โหลดซ้ำเมื่อส่วนประกอบในแอปนี้มีรุ่นที่รองรับอยู่แล้ว การติดตั้งที่ล้มเหลวจะอยู่ใน staging แยก จึงลองใหม่ได้
+โปรแกรมที่ติดตั้งไว้ใน PATH หรือโฟลเดอร์อื่นจะไม่ถูกนำมาใช้ใน Setup/Start MCP ของ N3zuui ไม่ดาวน์โหลดซ้ำเมื่อส่วนประกอบในแอปนี้มีรุ่นที่รองรับอยู่แล้ว การติดตั้งที่ล้มเหลวจะอยู่ใน staging แยก จึงลองใหม่ได้
 
-ZIP ที่แจกยังมีเฉพาะ DWB ไม่มี third-party binary หรือ `external` ที่ติดตั้งแล้ว การดาวน์โหลดเกิดบนเครื่องผู้ใช้เมื่อกดติดตั้ง ดู [แหล่งดาวน์โหลดและการแยกโฟลเดอร์](docs/EXTERNAL.md)
+ZIP ที่แจกยังมีเฉพาะ N3zuui ไม่มี third-party binary หรือ `external` ที่ติดตั้งแล้ว การดาวน์โหลดเกิดบนเครื่องผู้ใช้เมื่อกดติดตั้ง ดู [แหล่งดาวน์โหลดและการแยกโฟลเดอร์](docs/EXTERNAL.md)
 
-ข้อมูล workspace, config และ key ยังคงอยู่ใน `%LOCALAPPDATA%\DWB-MCP-Studio` เมื่อย้ายโฟลเดอร์โปรแกรมให้เปิด Setup ใหม่เพื่อตั้ง path ส่วนตัวโปรแกรมภายนอกอยู่ใน `external` ของแต่ละ installation
+ข้อมูล workspace, config และ key ของ installation เดิมยังคงอยู่ใน `%LOCALAPPDATA%\DWB-MCP-Studio` เพื่อให้อัปเกรดจาก DWB แล้วไม่หลุดการเชื่อมต่อหรือค่าที่บันทึกไว้; path นี้เป็นชื่อโฟลเดอร์ legacy ที่คงไว้เพื่อ compatibility เมื่อย้ายโฟลเดอร์โปรแกรมให้เปิด Setup ใหม่เพื่อตั้ง path ส่วนตัวโปรแกรมภายนอกอยู่ใน `external` ของแต่ละ installation
 
-ยังต้องสร้าง tunnel บน OpenAI และเชื่อมกับ ChatGPT ตามระบบของ OpenAI ใช้ **Tunnel ID คนละตัวกับระบบเดิมที่กำลังเปิดอยู่** DWB สร้างโปรไฟล์แยกใน data directory และเลือกพอร์ตว่างอัตโนมัติ สถานะพร้อมเป็นผลจาก tunnel-client; ยืนยันการใช้งานครบเส้นทางด้วยการเรียกเครื่องมือจากแชท
+ยังต้องสร้าง tunnel บน OpenAI และเชื่อมกับ ChatGPT ตามระบบของ OpenAI ใช้ **Tunnel ID คนละตัวกับระบบเดิมที่กำลังเปิดอยู่** N3zuui สร้างโปรไฟล์แยกใน data directory และเลือกพอร์ตว่างอัตโนมัติ สถานะพร้อมเป็นผลจาก tunnel-client; ยืนยันการใช้งานครบเส้นทางด้วยการเรียกเครื่องมือจากแชท
 
-สำหรับ local MCP client ใช้ไฟล์ `%LOCALAPPDATA%\DWB-MCP-Studio\mcp-client.json` ที่ Setup สร้างให้ หรือเชื่อมอัตโนมัติด้วย `node scripts/connect.mjs install --client <id>` / `node scripts/connect.mjs install --all` ดู [การเชื่อมต่อ](docs/CONFIGURATION.md) `node scripts/start.mjs` เป็น stdio server ให้ client เปิด ส่วน `DWB MCP Studio.exe` เป็นหน้าต่างสำหรับ Start/Stop OpenAI Tunnel
+สำหรับ local MCP client ใช้ไฟล์ `%LOCALAPPDATA%\DWB-MCP-Studio\mcp-client.json` ที่ Setup สร้างให้ หรือเชื่อมอัตโนมัติด้วย `node scripts/connect.mjs install --client <id>` / `node scripts/connect.mjs install --all` ดู [การเชื่อมต่อ](docs/CONFIGURATION.md) `node scripts/start.mjs` เป็น stdio server ให้ client เปิด ส่วน `N3zuui Studio.exe` เป็นหน้าต่างสำหรับ Start/Stop OpenAI Tunnel
 
 เปิด `node scripts/doctor.mjs` เพื่อตรวจ config และสถานะ broker โดยไม่เปิด worker เพิ่ม สถานะ `stopped` เป็นปกติก่อน client เชื่อมต่อ
 
@@ -175,7 +180,7 @@ ZIP ที่แจกยังมีเฉพาะ DWB ไม่มี third-p
 
 > ทำงานใน workspace ร้านกาแฟ
 
-หรือ “ทำ coffee-shop ต่อ ช่วยตรวจหน้าเมนูให้หน่อย” AI จะค้นชื่อหรือ alias แล้วผูก workspace ให้แชทใหม่ โดยใช้ข้อมูล workspace ชุดเดิมของ DWB ในเครื่องคุณ
+หรือ “ทำ coffee-shop ต่อ ช่วยตรวจหน้าเมนูให้หน่อย” AI จะค้นชื่อหรือ alias แล้วผูก workspace ให้แชทใหม่ โดยใช้ข้อมูล workspace ชุดเดิมของ N3zuui ในเครื่องคุณ
 
 | สถานการณ์                   | สิ่งที่ควรทำ                                                                            |
 | --------------------------- | --------------------------------------------------------------------------------------- |
@@ -205,7 +210,7 @@ npm run doctor
 node scripts/configure.mjs --worker-entry "D:/My Tools/DC/node_modules/@wonderwhy-er/desktop-commander/dist/index.js" --workspace "D:/My Projects" --worker-cap 4
 ```
 
-path ในตัวอย่างต้องเปลี่ยนเป็นของคุณ Setup ใช้ตำแหน่งจริงของ Node และ DWB สร้าง config ให้ จึงไม่ผูกกับเครื่องผู้พัฒนา
+path ในตัวอย่างต้องเปลี่ยนเป็นของคุณ Setup ใช้ตำแหน่งจริงของ Node และ N3zuui สร้าง config ให้ จึงไม่ผูกกับเครื่องผู้พัฒนา
 
 ## Core ที่มีให้
 
@@ -220,7 +225,7 @@ path ในตัวอย่างต้องเปลี่ยนเป็น
 - Payload guard เริ่มต้น 256 KiB พร้อมผลตอบกลับที่แจ้งว่าข้อมูลใหญ่เกิน
 - Proxy tools และ MCP resources จาก Desktop Commander ที่ผู้ใช้ติดตั้งเอง
 
-เครื่องมือ DWB ที่เพิ่มจาก upstream มี 8 ตัว: `dwb_bridge_status`, `dwb_broker_status`, `dwb_session_status`, `dwb_restart_worker`, `dwb_list_sessions`, `dwb_list_detached_sessions`, `dwb_resume_session`, `workspace`
+เครื่องมือ N3zuui ที่เพิ่มจาก upstream มี 8 ตัว: `dwb_bridge_status`, `dwb_broker_status`, `dwb_session_status`, `dwb_restart_worker`, `dwb_list_sessions`, `dwb_list_detached_sessions`, `dwb_resume_session`, `workspace`
 
 เมื่อผู้ใช้ระบุ working directory ให้ AI เรียก `workspace(action="bind", path="<absolute path>")` ทันที ก่อนทำงานกับไฟล์หรือ shell โดยคำสั่งเดียวจะลงทะเบียนหรือใช้ workspace ที่ตรงกับ path นั้น แล้วผูกกับแชทปัจจุบัน ไม่ต้องให้ผู้ใช้สั่ง register แยก การ bind เปลี่ยนโฟลเดอร์เริ่มต้นของ worker ในแชทนั้น แต่ไม่ขยายสิทธิ์ `allowedDirectories` ของ Desktop Commander ใช้ absolute path กับ file tools ต่อไป
 
@@ -232,7 +237,7 @@ path ในตัวอย่างต้องเปลี่ยนเป็น
 - ไม่มีการนำเข้าแชต ประวัติ Desktop Commander หรือ config ส่วนตัวโดยอัตโนมัติ
 - `base-policy.json` ที่ Setup สร้างอนุญาตโฟลเดอร์งานที่เลือก ปรับเพิ่มโฟลเดอร์ได้เอง แล้วเริ่ม broker ใหม่
 - แต่ละ worker มี config home ของตัวเอง โดยไม่เปลี่ยน OS home ที่ Git/SSH และคำสั่งอื่นใช้ และไม่ patch ไฟล์ Desktop Commander บน disk
-- DWB เก็บ event metadata, workspace paths และ file fingerprints ในเครื่อง Payload archive ใช้ redaction เป็นค่าเริ่มต้น แต่ไม่รับประกันว่าจะลบข้อมูลอ่อนไหวได้ทุกชนิด เลือก `DWB_PAYLOAD_ARCHIVE_MODE=off` หากไม่ต้องการเก็บ
+- N3zuui เก็บ event metadata, workspace paths และ file fingerprints ในเครื่อง Payload archive ใช้ redaction เป็นค่าเริ่มต้น แต่ไม่รับประกันว่าจะลบข้อมูลอ่อนไหวได้ทุกชนิด เลือก `DWB_PAYLOAD_ARCHIVE_MODE=off` หากไม่ต้องการเก็บ
 - Desktop Commander อาจเก็บประวัติ tool ของตัวเองใน worker config home ดูรายละเอียดที่โปรเจกต์ต้นทาง
 - File locks และ workspace guard **ไม่ใช่ OS sandbox** ไม่ได้ครอบคลุมการแก้ไฟล์ผ่าน shell, ทุก tool หรือโปรแกรมภายนอก จึงควรใช้กับ client ที่คุณไว้ใจ
 - คำสั่งที่ connection หลุดระหว่างทำงานจะไม่ถูก replay อัตโนมัติ ต้องตรวจผลก่อนสั่งใหม่
@@ -252,10 +257,10 @@ npm run format:check
 npm run release
 ```
 
-`npm test` ใช้ test double ที่ DWB เขียนเอง ไม่ดาวน์โหลด Desktop Commander การทดสอบ integration ใช้ตัวจริงภายนอกและตรวจว่า config.js ไม่ถูกแก้ไข
+`npm test` ใช้ test double ที่ N3zuui เขียนเอง ไม่ดาวน์โหลด Desktop Commander การทดสอบ integration ใช้ตัวจริงภายนอกและตรวจว่า config.js ไม่ถูกแก้ไข
 
-`npm run release` สร้าง ZIP และ SHA-256 ใน `releases/` จากรายการไฟล์ที่กำหนดเท่านั้น ไม่มี `node_modules`, ข้อมูล runtime, log, config ผู้ใช้ หรือโปรแกรมภายนอก ตัว ZIP มี source ของ DWB และ JavaScript ที่ build แล้ว ส่วน npm libraries ให้ผู้ใช้ดาวน์โหลดตอน Setup
+`npm run release` สร้าง ZIP และ SHA-256 ใน `releases/` จากรายการไฟล์ที่กำหนดเท่านั้น ไม่มี `node_modules`, ข้อมูล runtime, log, config ผู้ใช้ หรือโปรแกรมภายนอก ตัว ZIP มี source ของ N3zuui และ JavaScript ที่ build แล้ว ส่วน npm libraries ให้ผู้ใช้ดาวน์โหลดตอน Setup
 
 ## อัปเดตจากรุ่นเดิม
 
-เปิด `DWB MCP Studio.exe` ในรุ่นใหม่ แล้วกด **อัปเดตและใช้การตั้งค่าเดิม** ระบบนำส่วนประกอบจาก DWB เดิมมาใช้และรักษา workspace, Tunnel ID และ key ที่บันทึกไว้ ไม่ต้องผูก connector ใหม่บนเครื่องเดิม ดู [วิธีอัปเดต](docs/UPDATING-TH.md) รวมขั้นตอนปิด runtime เดิมหลังจบงาน
+เปิด `N3zuui Studio.exe` ในรุ่นใหม่ แล้วกด **อัปเดตและใช้การตั้งค่าเดิม** ระบบนำส่วนประกอบจาก N3zuui เดิมมาใช้และรักษา workspace, Tunnel ID และ key ที่บันทึกไว้ ไม่ต้องผูก connector ใหม่บนเครื่องเดิม ดู [วิธีอัปเดต](docs/UPDATING-TH.md) รวมขั้นตอนปิด runtime เดิมหลังจบงาน

@@ -9,15 +9,19 @@
   return $defaults
 }
 function Set-DwbWindowsStartup([bool]$Enabled,[string]$RegistryPath='HKCU:\Software\Microsoft\Windows\CurrentVersion\Run') {
-  $name='DWB MCP Studio'
+  $name='N3zuui Studio'
+  $legacyName='DWB MCP Studio'
   if($Enabled){
-    $exe=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\DWB MCP Studio.exe'))
-    if(-not(Test-Path -LiteralPath $exe)){throw 'DWB launcher is missing.'}
+    $exe=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\N3zuui Studio.exe'))
+    if(-not(Test-Path -LiteralPath $exe)){throw 'N3zuui launcher is missing.'}
     if(-not(Test-Path -Path $RegistryPath)){$null=New-Item -Path $RegistryPath -Force}
     $command='"'+$exe+'" --startup --data-dir "'+(Get-DwbDataDirectory)+'"'
     $null=New-ItemProperty -Path $RegistryPath -Name $name -Value $command -PropertyType String -Force
+    if((Get-Item -Path $RegistryPath).GetValue($legacyName,$null) -ne $null){Remove-ItemProperty -Path $RegistryPath -Name $legacyName -ErrorAction Stop}
   }elseif(Test-Path -Path $RegistryPath){
-    if((Get-Item -Path $RegistryPath).GetValue($name,$null) -ne $null){Remove-ItemProperty -Path $RegistryPath -Name $name -ErrorAction Stop}
+    foreach($entry in @($name,$legacyName)){
+      if((Get-Item -Path $RegistryPath).GetValue($entry,$null) -ne $null){Remove-ItemProperty -Path $RegistryPath -Name $entry -ErrorAction Stop}
+    }
   }
 }
 function Save-DwbPreferences($Preferences,[string]$RegistryPath='HKCU:\Software\Microsoft\Windows\CurrentVersion\Run') {

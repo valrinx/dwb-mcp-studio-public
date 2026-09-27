@@ -104,7 +104,7 @@ try {
     .filter((item: any) => item.type === 'text')
     .map((item: any) => item.text)
     .join('\n');
-  assert.match(text, /DWB Payload Guard intercepted/);
+  assert.match(text, /N3zuui Payload Guard intercepted/);
   assert.match(text, /read only the specific file needed/i);
   assert.match(text, /large-a\.png/);
   assert.equal(

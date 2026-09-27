@@ -3,7 +3,8 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const SERVER_NAME = 'dwb-core';
+const SERVER_NAME = 'n3zuui-core';
+const LEGACY_SERVER_NAMES = ['dwb-core'];
 
 function defaultRoots() {
   const homeDir = homedir();
@@ -225,6 +226,9 @@ export function mergeClientConfig(source, { clientId, entry, serverName = SERVER
     throw new Error(`MCP client config must contain an object at top-level ${key}.`);
   }
   config[key][serverName] = entry;
+  if (serverName === SERVER_NAME) {
+    for (const legacyName of LEGACY_SERVER_NAMES) delete config[key][legacyName];
+  }
   return config;
 }
 

@@ -42,7 +42,7 @@ assert.match(redactedArchive, /OMITTED_BINARY/);
 assert.doesNotMatch(redactedArchive, /super-secret-value/);
 assert.doesNotMatch(redactedArchive, /abcdefghijklmnopqrstuvwxyz/);
 const imageForwarded = JSON.stringify(imageApplied.result);
-assert.match(imageForwarded, /DWB Payload Guard intercepted/);
+assert.match(imageForwarded, /N3zuui Payload Guard intercepted/);
 assert.doesNotMatch(imageForwarded, /A{1000}/);
 
 const hugeStructured = {

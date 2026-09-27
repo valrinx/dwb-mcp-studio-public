@@ -1,24 +1,24 @@
-# แผนต่อยอด DWB เป็นตัวจัดการ MCP
+# แผนต่อยอด N3zuui เป็นตัวจัดการ MCP
 
 ## สถานะ MVP ณ 2026-09-26
 
 - เฟสแรกและส่วน catalog ของเฟสสองมี implementation แล้ว: จัดการ stdio servers จาก Dashboard, ต่อ tools แบบ namespaced ผ่าน broker และเก็บ server แยก per session
 - catalog รุ่นเริ่มต้นมี Filesystem หนึ่งรายการ ใช้ package/version แบบ pin, ติดตั้งผ่าน staging โดยปิด npm lifecycle scripts, ตรวจ identity ก่อนบันทึก และเริ่มแบบ disabled
-- environment ถูกป้องกันด้วย Windows DPAPI; การลบ catalog server หยุด manager ownership ก่อนตรวจ package/path ที่ DWB เป็นเจ้าของ
+- environment ถูกป้องกันด้วย Windows DPAPI; การลบ catalog server หยุด manager ownership ก่อนตรวจ package/path ที่ N3zuui เป็นเจ้าของ
 - การทดสอบเฉพาะรันด้วย `npm run test:external-mcp`; คู่มือการใช้งานและ trust boundary อยู่ใน [MCP Server Manager](MCP-SERVER-MANAGER-TH.md)
 - ขอบเขตที่ยังเหลือ: catalog เพิ่มเติม, ปุ่ม restart/ราย-tool allowlist และ remote Streamable HTTP/SSE ตามเฟสถัดไป
 
 ## เป้าหมาย
 
-ให้ DWB จัดการ MCP Server หลายตัวจากแอปเดียว แล้วเปิดเครื่องมือของแต่ละ Server ผ่าน MCP connection ของ DWB ที่มีอยู่ โดยไม่ทำให้ Desktop Commander, workspace binding, multi-agent และ tunnel เดิมเสียความเข้ากันได้
+ให้ N3zuui จัดการ MCP Server หลายตัวจากแอปเดียว แล้วเปิดเครื่องมือของแต่ละ Server ผ่าน MCP connection ของ N3zuui ที่มีอยู่ โดยไม่ทำให้ Desktop Commander, workspace binding, multi-agent และ tunnel เดิมเสียความเข้ากันได้
 
 จาก RVN ที่ติดตั้งอยู่ในเครื่อง รูปแบบที่ยืนยันได้คือเพิ่ม server ด้วย `Name`, `Command`, `Working directory`, `Type`, `Args` และ `Environment` และตั้งค่า allowlist ส่วนหน้าจอที่ตรวจดูไม่มี catalog สำหรับติดตั้งแพ็กเกจแบบคลิกเดียว ดังนั้นแผนนี้แยกการจัดการ command ที่มีอยู่แล้ว ออกจากการติดตั้งผ่าน catalog
 
 ## ขอบเขตผลิตภัณฑ์
 
 1. จัดการ MCP Server ภายนอก: เพิ่ม แก้ไข เปิด/ปิด ตรวจสถานะ เริ่มใหม่ และลบรายการ
-2. รวม tools ของ Server ที่เปิดใช้งานไว้ใน DWB MCP endpoint เดียว โดยเติม prefix จาก server ID เพื่อกันชื่อชนกันและคงเส้นทางเรียกกลับไปยัง server ต้นทาง
-3. ติดตั้ง MCP Server จาก catalog ที่ DWB ดูแล โดย pin package/version และติดตั้งลงโฟลเดอร์เฉพาะของ DWB
+2. รวม tools ของ Server ที่เปิดใช้งานไว้ใน N3zuui MCP endpoint เดียว โดยเติม prefix จาก server ID เพื่อกันชื่อชนกันและคงเส้นทางเรียกกลับไปยัง server ต้นทาง
+3. ติดตั้ง MCP Server จาก catalog ที่ N3zuui ดูแล โดย pin package/version และติดตั้งลงโฟลเดอร์เฉพาะของ N3zuui
 4. รักษา Desktop Commander เป็น worker เฉพาะทางของเดิม ไม่บังคับให้ MCP ทุกตัวมี package layout แบบ Desktop Commander
 
 ขอบเขตเริ่มต้นรองรับ local `stdio` servers ก่อน ส่วน remote Streamable HTTP/SSE เป็นเฟสถัดไปหลัง lifecycle และ routing ของ stdio เสถียร
@@ -34,13 +34,13 @@ External MCP Registry + Installer
           ↓
 External MCP Supervisor (stdio children)
           ↓
-DWB Broker: list/namespace tools และ route tool calls
+N3zuui Broker: list/namespace tools และ route tool calls
           ↓
-MCP Client ใช้ DWB connection เดิม
+MCP Client ใช้ N3zuui connection เดิม
 ```
 
 - เพิ่ม registry/supervisor แยกจาก `WorkerSupervisor` ซึ่งมี assumptions เฉพาะ Desktop Commander
-- เก็บ manifest และสถานะติดตั้งใน data directory ของผู้ใช้ ไม่ปะปนกับ source, `node_modules` ของ DWB หรือ workspace
+- เก็บ manifest และสถานะติดตั้งใน data directory ของผู้ใช้ ไม่ปะปนกับ source, `node_modules` ของ N3zuui หรือ workspace
 - เรียกโปรแกรมด้วย executable และ argument array โดยตรง ไม่ประกอบเป็น shell command
 - ติดตั้งแบบ staging, ตรวจชื่อและรุ่น package, แล้วค่อย activate; เมื่อล้มเหลวให้คง installation เดิม
 - ตั้ง namespace ให้ tool ภายนอก เช่น `github__create_issue`; core tools `dwb_*` และชื่อ tool เดิมของ Desktop Commander คงเดิม
@@ -60,7 +60,7 @@ MCP Client ใช้ DWB connection เดิม
 
 - เพิ่ม catalog แบบ version-controlled ที่ระบุ package source, package/version pin, command, args และ required environment keys
 - ติดตั้งด้วย npm ลง staging เฉพาะ server; ตรวจ package identity/version ก่อน activate
-- รองรับ update/rollback และลบเฉพาะ path ที่ registry ของ DWB เป็นเจ้าของ
+- รองรับ update/rollback และลบเฉพาะ path ที่ registry ของ N3zuui เป็นเจ้าของ
 - แสดงแหล่งที่มา รุ่น สิทธิ์ที่ต้องใช้ และ environment ที่จำเป็นก่อนติดตั้ง/เปิดใช้งาน
 - ไม่ติดตั้งหรือรัน package จาก catalog โดยอัตโนมัติระหว่างเปิดแอป
 
@@ -68,17 +68,17 @@ MCP Client ใช้ DWB connection เดิม
 
 - เก็บ secret ด้วย Windows DPAPI; ไม่เขียน secret ลง config, log หรือ command line
 - มี allowlist/disable ราย server และราย tool พร้อมคำเตือนว่าคำสั่ง MCP ภายนอกทำงานด้วยสิทธิ์ของบัญชี Windows
-- กำหนดชัดว่า workspace boundary และ file locks ของ DWB ครอบคลุมเฉพาะเครื่องมือที่ DWB รู้จัก ไม่ถือว่าป้องกัน side effects ของ MCP ภายนอก
+- กำหนดชัดว่า workspace boundary และ file locks ของ N3zuui ครอบคลุมเฉพาะเครื่องมือที่ N3zuui รู้จัก ไม่ถือว่าป้องกัน side effects ของ MCP ภายนอก
 - เพิ่ม remote Streamable HTTP เมื่อมี credential storage, timeout, reconnect และ permission model ที่ผ่านการออกแบบ
 
 ## เกณฑ์รับงาน
 
 - ผู้ใช้เพิ่ม stdio server ได้ และเห็นสถานะ/ข้อผิดพลาดจาก Dashboard
-- DWB แสดง tools ของ server ที่เปิดใช้งาน โดยชื่อไม่ชนกับ server อื่นหรือ core tools
+- N3zuui แสดง tools ของ server ที่เปิดใช้งาน โดยชื่อไม่ชนกับ server อื่นหรือ core tools
 - เรียก tool แล้วถึง upstream server ที่ถูกต้อง พร้อม arguments เดิม และไม่เรียก server อื่น
 - Server ที่ปิดใช้งานหรือเริ่มไม่สำเร็จไม่ทำให้ MCP connection หลักล่ม
 - การติดตั้ง catalog ใช้รุ่นที่ pin ไว้ ตรวจ package ก่อนใช้งาน และ rollback ได้เมื่อการติดตั้งไม่ครบ
-- config เดิมของ DWB และการ migrate beta เดิมยังทำงาน; Desktop Commander, workspace และ task coordination ผ่าน regression checks
+- config เดิมของ N3zuui และการ migrate beta เดิมยังทำงาน; Desktop Commander, workspace และ task coordination ผ่าน regression checks
 - มีคำอธิบาย trust boundary และข้อมูลที่เก็บในเครื่องในคู่มือผู้ใช้
 
 ## จุดเชื่อมกับโค้ดปัจจุบัน
@@ -96,7 +96,7 @@ MCP Client ใช้ DWB connection เดิม
 
 `TDD_REQUIRED: yes` สำหรับ lifecycle, namespace และ routing เพราะเป็น behavior ใหม่ที่แตะ public MCP surface
 
-จุดทดสอบ observable แรก: สร้าง MCP test server จริงผ่าน stdio, ให้ DWB ค้นพบ tool ที่มีชื่อซ้ำกับอีก server, แสดงชื่อแบบ namespaced แล้วเรียกชื่อหนึ่งและยืนยันว่าไปถึง server/arguments ที่ตรงกัน
+จุดทดสอบ observable แรก: สร้าง MCP test server จริงผ่าน stdio, ให้ N3zuui ค้นพบ tool ที่มีชื่อซ้ำกับอีก server, แสดงชื่อแบบ namespaced แล้วเรียกชื่อหนึ่งและยืนยันว่าไปถึง server/arguments ที่ตรงกัน
 
 RED command ที่เสนอหลังเริ่ม implementation: `npm exec -- tsx src/external-mcp-manager-test.ts`
 

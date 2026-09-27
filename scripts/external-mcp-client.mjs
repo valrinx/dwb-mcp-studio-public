@@ -42,7 +42,7 @@ function requestBroker(params) {
       else resolve(value);
     };
     const timer = setTimeout(() => {
-      const error = new Error('Timed out connecting to DWB broker');
+      const error = new Error('Timed out connecting to N3zuui broker');
       error.code = 'ETIMEDOUT';
       finish(error);
     }, 4_000);

@@ -1,13 +1,13 @@
-# อัปเดต DWB โดยใช้การตั้งค่าเดิม
+# อัปเดต N3zuui โดยใช้การตั้งค่าเดิม
 
 ตั้งแต่ beta.11 การอัปเดตบนเครื่องและบัญชี Windows เดิมไม่ต้องสร้าง Tunnel ID, ผูก connector หรือกรอก API key ใหม่ หากเคยเลือกบันทึก key ไว้
 
-1. จบงานที่กำลังทำ รวม process และ search เบื้องหลัง แล้วกด **Stop MCP** ใน Dashboard รุ่นเดิม และ disconnect client อื่นที่ใช้ DWB
-2. แตก ZIP รุ่นใหม่ โดยเก็บโฟลเดอร์รุ่นเดิมไว้ก่อน แล้วเปิด **DWB MCP Studio.exe** ในรุ่นใหม่
+1. จบงานที่กำลังทำ รวม process และ search เบื้องหลัง แล้วกด **Stop MCP** ใน Dashboard รุ่นเดิม และ disconnect client อื่นที่ใช้ N3zuui
+2. แตก ZIP รุ่นใหม่ โดยเก็บโฟลเดอร์รุ่นเดิมไว้ก่อน แล้วเปิด **N3zuui Studio.exe** ในรุ่นใหม่
 3. กด **อัปเดตและใช้การตั้งค่าเดิม** โฟลเดอร์งานและจำนวน worker จะเติมจากค่าที่บันทึกไว้
 4. เปิด Dashboard แล้วใช้ **Start MCP** ด้วย Tunnel ID และ key เดิม
 
-Setup คัดลอก Desktop Commander และ tunnel-client รุ่นที่รองรับจากโฟลเดอร์ DWB เดิมที่ config ระบุ ไปไว้ใน `external` ของรุ่นใหม่ ไม่ใช้โปรแกรมของแอปอื่นร่วมกัน และไม่ย้ายหรือลบโฟลเดอร์เดิม ส่วน node_modules ของ DWB ใช้ซ้ำเมื่อ dependency graph ตรงกันและ npm ตรวจว่าครบ หากขาดส่วนประกอบหรือเปลี่ยนรุ่นจึงติดตั้งส่วนที่จำเป็น การดาวน์โหลด source จาก Git อาจต้องติดตั้งเครื่องมือ build เพิ่ม
+Setup คัดลอก Desktop Commander และ tunnel-client รุ่นที่รองรับจากโฟลเดอร์ N3zuui เดิมที่ config ระบุ ไปไว้ใน `external` ของรุ่นใหม่ ไม่ใช้โปรแกรมของแอปอื่นร่วมกัน และไม่ย้ายหรือลบโฟลเดอร์เดิม ส่วน node_modules ของ N3zuui ใช้ซ้ำเมื่อ dependency graph ตรงกันและ npm ตรวจว่าครบ หากขาดส่วนประกอบหรือเปลี่ยนรุ่นจึงติดตั้งส่วนที่จำเป็น การดาวน์โหลด source จาก Git อาจต้องติดตั้งเครื่องมือ build เพิ่ม
 
 ข้อมูล workspace, aliases, policy, Tunnel ID และ key อยู่ใน `%LOCALAPPDATA%\DWB-MCP-Studio` ตามเดิม (หรือ data directory ที่กำหนดเอง) Setup เปลี่ยน path ของ worker และ launcher ให้ตรงกับรุ่นใหม่ รักษา custom policy และคืน config เดิมหากตรวจขั้นสุดท้ายไม่ผ่าน
 
@@ -15,7 +15,7 @@ Setup คัดลอก Desktop Commander และ tunnel-client รุ่น�
 
 ตั้งแต่ beta.13 Dashboard แสดง version ของ broker จริง หากไม่ตรงกับรุ่นหน้าจอจะบอกให้ Stop MCP และเปิดตั้งค่าเครื่อง Setup ตรวจงานก่อนบันทึก config ใหม่ และ broker ที่รองรับจะหยุดรับคำขอ ตรวจ process/search ทั้งหมด บันทึก session แล้วปิดอย่างเป็นลำดับ หากมีงานหรือบันทึกไม่ได้จะหยุดการอัปเดตและแจ้งเหตุผล
 
-สำหรับ beta.9–12 ซึ่งยังไม่มีคำสั่งเตรียมอัปเดต: Setup รอได้ประมาณ 75 วินาทีให้ broker เดิมคืน worker ที่ว่าง แล้วปิดเฉพาะ broker ที่ไม่มี worker/คำขอ/การเชื่อมต่อเหลือ โดยตรวจ PID, process handle และ path ว่าเป็น public DWB เดิมจริง หากยังมีงานจะไม่ปิด ให้กลับไปจบ process/search และ disconnect client ก่อนลองใหม่ หากตรวจยืนยัน installation เดิมไม่ได้ ให้จบงานแล้ว restart Windows หนึ่งครั้ง ข้อมูลการตั้งค่าไม่ต้องกรอกใหม่
+สำหรับ beta.9–12 ซึ่งยังไม่มีคำสั่งเตรียมอัปเดต: Setup รอได้ประมาณ 75 วินาทีให้ broker เดิมคืน worker ที่ว่าง แล้วปิดเฉพาะ broker ที่ไม่มี worker/คำขอ/การเชื่อมต่อเหลือ โดยตรวจ PID, process handle และ path ว่าเป็น public N3zuui เดิมจริง หากยังมีงานจะไม่ปิด ให้กลับไปจบ process/search และ disconnect client ก่อนลองใหม่ หากตรวจยืนยัน installation เดิมไม่ได้ ให้จบงานแล้ว restart Windows หนึ่งครั้ง ข้อมูลการตั้งค่าไม่ต้องกรอกใหม่
 
 หลัง Setup สำเร็จ ให้กด **Start MCP** รุ่นใหม่ broker จะเปิดจากโฟลเดอร์ใหม่เมื่อ client เชื่อมต่อ การเปิดหน้าต่างใหม่เพียงอย่างเดียวไม่ใช่การเปลี่ยน broker
 
@@ -25,4 +25,4 @@ Setup คัดลอก Desktop Commander และ tunnel-client รุ่น�
 - ลบโฟลเดอร์รุ่นเดิมไปแล้ว: Setup ดาวน์โหลดส่วนประกอบที่ไม่มีให้อีกครั้ง แต่ข้อมูลใน data directory ยังใช้ต่อได้
 - ไม่ได้บันทึก key: ต้องกรอก key เมื่อเริ่ม tunnel ตามตัวเลือกที่เคยตั้งไว้
 - เครื่องใหม่หรือบัญชี Windows ใหม่: ต้องติดตั้ง runtime ในเครื่องนั้น และกรอก key ใหม่ เพราะ key เดิมเข้ารหัสด้วย Windows DPAPI ของบัญชีเดิม การอัปเดตนี้ไม่ได้เป็นระบบย้ายเครื่อง
-- MCP client ที่ตั้ง command เอง: ใช้ `mcp-client.json` ที่ Setup สร้างใหม่ ส่วนผู้ใช้ Start MCP ผ่าน DWB ไม่ต้องแก้ command เอง
+- MCP client ที่ตั้ง command เอง: ใช้ `mcp-client.json` ที่ Setup สร้างใหม่ ส่วนผู้ใช้ Start MCP ผ่าน N3zuui ไม่ต้องแก้ command เอง

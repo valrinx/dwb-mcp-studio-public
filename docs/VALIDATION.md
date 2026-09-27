@@ -16,7 +16,7 @@ Validated locally on Windows with Node.js 24.11.1 and the minimum supported Node
 - Missing external dependency produces an actionable error.
 - Setup/Doctor and generated MCP configuration work after moving the program to a path containing spaces.
 - Re-running Setup preserves a user-edited base policy.
-- WPF Thai setup window rendered and visually inspected at the initial and successful states, including populated input text, original DWB logo, and enabled result actions.
+- WPF Thai setup window rendered and visually inspected at the initial and successful states, including populated input text, original N3zuui logo, and enabled result actions.
 - The Workspace guide link in Setup was visually checked in the rendered window; the offline HTML guide and local asset/link targets were checked from source. Browser rendering of the guide was not verified because the inspection browser blocks local file URLs.
 - Setup requirements reject missing/older Node versions and missing workers.
 - GUI save action tested end to end from an installation path containing spaces and an ampersand: production npm install, configure, Doctor, and enabled result buttons.
@@ -59,7 +59,7 @@ The existing private worker was used for earlier betas; beta.7's acceptance abov
 - Read-only broker snapshots expose worker/session/workspace/queue state without hello or adapter attachment. Regression checks verify unchanged session counts, worker counts and activity timestamps across repeated polling, and correct live worker PIDs.
 - A stopped broker remains stopped when the dashboard probe runs. An older broker is reported as requiring an update; a disconnected broker returns stopped rather than stale session rows.
 - WPF dashboard rendered with empty state and a snapshot from two live test workers. Background probe processes have bounded timeouts and do not run on the WPF UI thread. Closing the window terminates only its own pending probe.
-- Log tests cover partial JSON lines, heartbeat filtering and redaction of common credential patterns. Full arbitrary log privacy is not guaranteed; logs are read only from the configured local DWB event file and the owned tunnel log directory.
+- Log tests cover partial JSON lines, heartbeat filtering and redaction of common credential patterns. Full arbitrary log privacy is not guaranteed; logs are read only from the configured local N3zuui event file and the owned tunnel log directory.
 
 ### beta.9 managed dependencies
 
@@ -74,7 +74,7 @@ The existing private worker was used for earlier betas; beta.7's acceptance abov
 
 - The new WPF connection screen was rendered and inspected. Its actual Start/Stop button handlers passed with an original local executable fixture that implements a loopback readiness endpoint.
 - Tests cover invalid/missing inputs, JSON profile generation, paths with spaces and ampersands, duplicate Start, process ownership by PID/image/creation time, stop/restart, encrypted DPAPI key reuse and removal, and environment isolation from existing tunnel profiles.
-- A wrapper test verifies the tunnel API key is removed before loading the DWB launcher. No real credential was used in these checks.
+- A wrapper test verifies the tunnel API key is removed before loading the N3zuui launcher. No real credential was used in these checks.
 - Core tests, typecheck/build and the original GUI machine Setup passed after adding the new connection flow.
 - The profile follows the installed tunnel-client 0.0.11 CLI and built-in stdio sample. Automatic approval review blocked the attempted real `run --config` test against a loopback failure endpoint, returning only `blocked by policy`. That launch/authentication path is therefore not certified by the fixture results. The beta.7 local `dev proxy` results above remain historical evidence for core transport, not proof of beta.8 hosted authentication.
 
@@ -83,7 +83,7 @@ A new installation/data directory on the development machine is not a fresh Wind
 ## beta.11 — upgrade without repeated connection setup
 
 - Isolated Windows WPF setup test performs first install, then installs into a second directory using the same user data directory.
-- Confirms Desktop Commander, tunnel-client and matching DWB node_modules are copied from the previous DWB installation. A sentinel proves npm ci did not replace reused dependencies.
+- Confirms Desktop Commander, tunnel-client and matching N3zuui node_modules are copied from the previous N3zuui installation. A sentinel proves npm ci did not replace reused dependencies.
 - Verifies unchanged bytes for DPAPI key, tunnel settings and custom policy; verifies workspace/cap, custom config fields and updated worker/client launcher paths. Old installation remains intact.
 - Forces doctor failure after configure and checks byte-for-byte rollback of config.json and mcp-client.json.
 - Upgrade unit checks cover foreign-app rejection, idempotence, junction refusal and changed source/dist detection for Git updates.
@@ -91,7 +91,7 @@ A new installation/data directory on the development machine is not a fresh Wind
 
 ## beta.12 — one app, branded launcher and notification icon
 
-- DWB-owned launcher builds with Windows .NET Framework compiler; embeds a seven-size ICO made from the supplied DWB logo. No third-party executables are bundled.
+- N3zuui-owned launcher builds with Windows .NET Framework compiler; embeds a seven-size ICO made from the supplied N3zuui logo. No third-party executables are bundled.
 - WPF shell tests verify close/minimize to notification area, restore, duplicate launch signaling through the real EXE, explicit Windows taskbar AppUserModelID and page transition.
 - Real WPF navigation test exercises Dashboard → Tunnel settings → Dashboard → machine settings → Dashboard, hide/restore in each page, and control-window exit in a single host process. Uses an isolated data directory without starting MCP.
 - Exit from the tray stops only the UI and its short-lived status probe; the tunnel/broker lifecycle is unchanged. Windows controls whether the notification icon appears directly or under the overflow arrow.

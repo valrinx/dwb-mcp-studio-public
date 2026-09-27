@@ -5,14 +5,51 @@ export const NOT_A_CONTROL_TOOL = Symbol('dwb.notAControlTool');
 
 export const brokerTools = [
   {
+    name: 'dwb_external_mcp_list_tools',
+    description:
+      'List tools from enabled external MCP servers for hosts that cache their MCP tool registry. Returns server-prefixed names; set include_schema=true to inspect arguments before calling one.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        server_id: { type: 'string', description: 'Optional exact external MCP server ID.' },
+        query: {
+          type: 'string',
+          description: 'Optional text filter for tool names and descriptions.',
+        },
+        include_schema: { type: 'boolean', description: 'Include each tool input schema.' },
+        limit: { type: 'integer', description: 'Maximum results, from 1 to 100; defaults to 50.' },
+      },
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true },
+  },
+  {
+    name: 'dwb_external_mcp_call_tool',
+    description:
+      'Call a tool by its exact server-prefixed name from dwb_external_mcp_list_tools. External tools may change files, apps, or other state; inspect the schema and only call when the user requested that action.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Exact server-prefixed MCP tool name.' },
+        arguments: {
+          type: 'object',
+          description: 'Arguments matching the selected external tool input schema.',
+        },
+      },
+      required: ['name'],
+      additionalProperties: false,
+    },
+    annotations: { destructiveHint: true, idempotentHint: false, openWorldHint: true },
+  },
+  {
     name: 'dwb_bridge_status',
-    description: 'Show singleton DWB broker health plus the current MCP session.',
+    description: 'Show singleton N3zuui broker health plus the current MCP session.',
     inputSchema: { type: 'object', properties: {} },
     annotations: { readOnlyHint: true },
   },
   {
     name: 'dwb_broker_status',
-    description: 'Show global DWB broker, worker-pool, queue and lock status.',
+    description: 'Show global N3zuui broker, worker-pool, queue and lock status.',
     inputSchema: { type: 'object', properties: {} },
     annotations: { readOnlyHint: true },
   },
@@ -42,11 +79,11 @@ export const brokerTools = [
   },
   {
     name: 'dwb_resume_session',
-    description: 'Replace the current fresh MCP session with a detached DWB session.',
+    description: 'Replace the current fresh MCP session with a detached N3zuui session.',
     inputSchema: {
       type: 'object',
       properties: {
-        session_id: { type: 'string', description: 'Detached DWB session ID to resume.' },
+        session_id: { type: 'string', description: 'Detached N3zuui session ID to resume.' },
       },
       required: ['session_id'],
     },

@@ -54,7 +54,7 @@ try {
   if (process.platform !== 'win32') throw new Error('This beta is supported on Windows only.');
   const [major, minor] = process.versions.node.split('.').map(Number);
   if (major < 22 || (major === 22 && minor < 16))
-    throw new Error('Install Node.js 22.16 or newer, then rerun DWB MCP Studio.exe.');
+    throw new Error('Install Node.js 22.16 or newer, then rerun N3zuui Studio.exe.');
   await access(new URL('../dist/index.js', import.meta.url));
   const config = await validateConfig(await readConfig());
   console.log(
@@ -69,13 +69,13 @@ try {
         runtime: await runtimeStatus(),
         isolation: 'Per-worker config via an in-memory loader; external files are unchanged.',
         transport:
-          'Local stdio with the managed OpenAI tunnel. Open DWB MCP Studio.exe, enter your Tunnel ID and API key, then select Start MCP.',
+          'Local stdio with the managed OpenAI tunnel. Open N3zuui Studio.exe, enter your Tunnel ID and API key, then select Start MCP.',
       },
       null,
       2,
     ),
   );
 } catch (error) {
-  console.error(`DWB doctor failed: ${error.message}`);
+  console.error(`N3zuui doctor failed: ${error.message}`);
   process.exitCode = 1;
 }

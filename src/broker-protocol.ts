@@ -48,7 +48,11 @@ export type BrokerResponse = {
   error?: { code: string; message: string; details?: unknown };
 };
 
-export type BrokerNotification = {
-  method: 'notifications/agent_message';
-  params: { message: unknown };
-};
+export type BrokerNotification =
+  | {
+      method: 'notifications/agent_message';
+      params: { message: unknown };
+    }
+  | {
+      method: 'notifications/tools/list_changed';
+    };

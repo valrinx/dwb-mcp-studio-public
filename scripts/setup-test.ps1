@@ -88,7 +88,7 @@ try {
   Assert (Test-Path -LiteralPath (Join-Path $nextRoot 'node_modules\dwb-reuse-proof.txt')) 'npm ci ran instead of reusing dependencies.'
   Assert (Test-Path -LiteralPath $sentinel) 'Old installation was modified.'
   $client=Get-Content -LiteralPath (Join-Path $env:DWB_DATA_DIR 'mcp-client.json') -Raw | ConvertFrom-Json
-  Assert ($client.mcpServers.'dwb-core'.args[0].StartsWith($nextRoot)) 'Client launcher still points to old installation.'
+  Assert ($client.mcpServers.'n3zuui-core'.args[0].StartsWith($nextRoot)) 'Client launcher still points to old installation.'
   # Force final verification to fail after configure, and check byte-for-byte rollback.
   $beforeFailure=@{}
   foreach ($file in @($env:DWB_CONFIG_FILE,(Join-Path $env:DWB_DATA_DIR 'mcp-client.json'))) { $beforeFailure[$file]=(Get-FileHash -LiteralPath $file).Hash }

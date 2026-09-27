@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createConnection } from 'node:net';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -7,8 +9,22 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 
 type BrokerReply = { id: string; ok: boolean; result?: any; error?: { message: string } };
+
+function fixtureSource(identity: string): string {
+  return `
+    import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+    import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+    import { z } from 'zod';
+    const server = new McpServer({ name: 'external-fixture', version: '1.0.0' });
+    server.registerTool('identify', {
+      inputSchema: { value: z.string() },
+    }, async ({ value }) => ({ content: [{ type: 'text', text: '${identity}:' + value }] }));
+    await server.connect(new StdioServerTransport());
+  `;
+}
 
 function request(endpoint: string, message: Record<string, unknown>): Promise<BrokerReply> {
   return new Promise((resolve, reject) => {
@@ -59,6 +75,7 @@ function openChannel(endpoint: string) {
   const socket = createConnection(endpoint);
   let buffer = '';
   let pending: ((reply: BrokerReply) => void) | null = null;
+  const notificationWaiters = new Map<string, ((message: any) => void)[]>();
   const connected = new Promise<void>((resolve, reject) => {
     socket.once('connect', () => resolve());
     socket.once('error', reject);
@@ -72,6 +89,11 @@ function openChannel(endpoint: string) {
       const line = buffer.slice(0, newline);
       buffer = buffer.slice(newline + 1);
       const reply = JSON.parse(line) as BrokerReply;
+      if ('method' in reply) {
+        const waiters = notificationWaiters.get((reply as any).method);
+        waiters?.shift()?.(reply);
+        continue;
+      }
       const resolve = pending;
       pending = null;
       resolve?.(reply);
@@ -90,6 +112,22 @@ function openChannel(endpoint: string) {
             reject(new Error('Timed out waiting for broker IPC response'));
           }
         }, 5_000).unref();
+      });
+    },
+    waitForNotification(method: string): Promise<any> {
+      return new Promise((resolve, reject) => {
+        const waiters = notificationWaiters.get(method) ?? [];
+        const timer = setTimeout(() => {
+          const index = waiters.indexOf(onNotification);
+          if (index >= 0) waiters.splice(index, 1);
+          reject(new Error(`Timed out waiting for ${method}`));
+        }, 3_000);
+        const onNotification = (message: any) => {
+          clearTimeout(timer);
+          resolve(message);
+        };
+        waiters.push(onNotification);
+        notificationWaiters.set(method, waiters);
       });
     },
     close(): void {
@@ -164,6 +202,93 @@ test('broker exposes local MCP server management before a chat session attaches'
   assert.equal(listed.ok, true, listed.error?.message);
   assert.equal(listed.result.servers[0].id, 'fixture');
   assert.equal(listed.result.servers[0].env.FIXTURE_TOKEN, 'encrypted-value');
+});
+
+test('a connected MCP client refreshes its tool list when an external server is enabled', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'dwb-external-mcp-notify-'));
+  const endpoint = `\\\\.\\pipe\\dwb-external-mcp-notify-${process.pid}`;
+  const brokerEntry = fileURLToPath(new URL('../dist/broker-server.js', import.meta.url));
+  const child = spawn(process.execPath, [brokerEntry], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      DWB_BROKER_PIPE: endpoint,
+      DWB_DATA_DIR: root,
+      DWB_RUNTIME_DIR: join(root, 'runtime'),
+    },
+    stdio: ['ignore', 'ignore', 'pipe'],
+    windowsHide: true,
+  });
+  let stderr = '';
+  child.stderr?.on('data', (chunk) => {
+    stderr = (stderr + String(chunk)).slice(-4000);
+  });
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [fileURLToPath(new URL('../dist/index.js', import.meta.url))],
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      DWB_BROKER_PIPE: endpoint,
+      DWB_DATA_DIR: root,
+      DWB_RUNTIME_DIR: join(root, 'runtime'),
+    },
+    stderr: 'ignore',
+  });
+  const client = new Client({ name: 'external-mcp-notification-test', version: '1.0.0' });
+  let resolveToolsChanged!: () => void;
+  const toolsChanged = new Promise<void>((resolve) => {
+    resolveToolsChanged = resolve;
+  });
+  client.setNotificationHandler(ToolListChangedNotificationSchema, () => resolveToolsChanged());
+  t.after(async () => {
+    await client.close().catch(() => {});
+    await transport.close().catch(() => {});
+    await stop(child);
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  await waitForBroker(endpoint, child).catch((error) => {
+    throw new Error(`${error instanceof Error ? error.message : String(error)}\\n${stderr}`);
+  });
+  const fixture = {
+    id: 'fixture',
+    name: 'Fixture',
+    command: process.execPath,
+    args: ['--input-type=module', '-e', fixtureSource('enabled')],
+    cwd: process.cwd(),
+    env: {},
+    enabled: false,
+  };
+  const initiallySaved = await request(endpoint, {
+    id: 'save-disabled-fixture',
+    method: 'external_mcp_manage',
+    params: { action: 'save', servers: [fixture] },
+  });
+  assert.equal(initiallySaved.ok, true, initiallySaved.error?.message);
+
+  await client.connect(transport);
+  const initialTools = await client.listTools();
+  assert.equal(
+    initialTools.tools.some((tool) => tool.name === 'fixture__identify'),
+    false,
+  );
+
+  const enabled = await request(endpoint, {
+    id: 'enable-fixture',
+    method: 'external_mcp_manage',
+    params: { action: 'save', servers: [{ ...fixture, enabled: true }] },
+  });
+  assert.equal(enabled.ok, true, enabled.error?.message);
+  await Promise.race([
+    toolsChanged,
+    delay(3_000).then(() => {
+      throw new Error(`Timed out waiting for MCP tools/list_changed notification\\n${stderr}`);
+    }),
+  ]);
+
+  const refreshedTools = await client.listTools();
+  assert.ok(refreshedTools.tools.some((tool) => tool.name === 'fixture__identify'));
 });
 
 test('broker removes only a verified catalog installation when its definition is removed', async (t) => {
@@ -312,6 +437,44 @@ test('broker exposes and routes external MCP tools even when Desktop Commander c
   assert.ok(
     listed.result.tools.some((tool: { name: string }) => tool.name === 'fixture__identify'),
   );
+  assert.ok(
+    listed.result.tools.some(
+      (tool: { name: string }) => tool.name === 'dwb_external_mcp_list_tools',
+    ),
+    'hosts with a cached tool registry need a stable MCP discovery tool',
+  );
+  assert.ok(
+    listed.result.tools.some(
+      (tool: { name: string }) => tool.name === 'dwb_external_mcp_call_tool',
+    ),
+    'hosts with a cached tool registry need a stable MCP call proxy',
+  );
+
+  const proxyList = await channel.request({
+    id: 'list-tools-through-static-proxy',
+    method: 'call_tool',
+    params: {
+      name: 'dwb_external_mcp_list_tools',
+      arguments: { server_id: 'fixture', include_schema: true },
+    },
+  });
+  assert.equal(proxyList.ok, true, proxyList.error?.message);
+  assert.ok(
+    proxyList.result.structuredContent.tools.some(
+      (tool: { name: string }) => tool.name === 'fixture__identify',
+    ),
+  );
+
+  const proxyCall = await channel.request({
+    id: 'call-tool-through-static-proxy',
+    method: 'call_tool',
+    params: {
+      name: 'dwb_external_mcp_call_tool',
+      arguments: { name: 'fixture__identify', arguments: { value: 'through-static-proxy' } },
+    },
+  });
+  assert.equal(proxyCall.ok, true, proxyCall.error?.message);
+  assert.equal(proxyCall.result.content[0].text, 'external:through-static-proxy');
 
   const called = await channel.request({
     id: 'call-tool',
@@ -321,6 +484,7 @@ test('broker exposes and routes external MCP tools even when Desktop Commander c
   assert.equal(called.ok, true, called.error?.message);
   assert.equal(called.result.content[0].text, 'external:through-broker');
 
+  const toolsChanged = channel.waitForNotification('notifications/tools/list_changed');
   const replaceWithBrokenServer = await request(endpoint, {
     id: 'save-broken-server',
     method: 'external_mcp_manage',
@@ -340,6 +504,7 @@ test('broker exposes and routes external MCP tools even when Desktop Commander c
     },
   });
   assert.equal(replaceWithBrokenServer.ok, true, replaceWithBrokenServer.error?.message);
+  assert.equal((await toolsChanged).method, 'notifications/tools/list_changed');
 
   const degradedList = await channel.request({
     id: 'list-tools-with-broken-server',

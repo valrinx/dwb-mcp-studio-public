@@ -83,7 +83,7 @@ function catalogDataDir() {
 }
 
 function printHelp() {
-  console.log(`DWB MCP Studio AI client connector
+  console.log(`N3zuui MCP Studio AI client connector
 
 Commands:
   node scripts/connect.mjs list
@@ -93,11 +93,11 @@ Commands:
 
 Options:
   --workspace <dir>     Workspace for VS Code workspace and portable configs
-  --data-dir <dir>      DWB data directory
+  --data-dir <dir>      N3zuui data directory
   --config <file>       Explicit target config path (required for vscode)
   --json                Print machine-readable JSON
 
-The installer merges only the dwb-core entry and creates a timestamped .bak copy before updating an existing file.`);
+The installer updates n3zuui-core, migrates the legacy dwb-core entry, and creates a timestamped .bak copy before updating an existing file.`);
 }
 
 async function main() {
@@ -171,7 +171,7 @@ async function main() {
       console.log(`Connected ${result.client} → ${result.configFile}`);
       if (result.backupFile) console.log(`Backup: ${result.backupFile}`);
     }
-    console.log('Restart or reload the AI client so it starts dwb-core.');
+    console.log('Restart or reload the AI client so it starts n3zuui-core.');
   }
 }
 

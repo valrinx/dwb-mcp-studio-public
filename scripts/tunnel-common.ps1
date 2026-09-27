@@ -103,7 +103,7 @@ function Start-DwbTunnel([string]$TunnelId, [Security.SecureString]$ApiKey, [boo
     $info.WorkingDirectory = $appRoot
     $info.UseShellExecute = $false
     $info.CreateNoWindow = $true
-    # Isolate DWB from the user's existing tunnel profile and transport overrides.
+    # Isolate N3zuui from the user's existing tunnel profile and transport overrides.
     foreach ($name in @($info.EnvironmentVariables.Keys)) {
       if ($name -match '^(CONTROL_PLANE_|TUNNEL_CLIENT_|MCP_|HARPOON_|HEALTH_|ADMIN_UI_|CLOUDFLARED_|LOG_|DWB_)' -or $name -in @('OPENAI_API_KEY','OPEN_WEB_UI','ALLOW_REMOTE_UI')) { $info.EnvironmentVariables.Remove($name) }
     }

@@ -64,6 +64,13 @@ function notifySession(sessionId: string, message: BrokerNotification): boolean 
   return delivered;
 }
 
+function notifyToolListChanged(): void {
+  for (const [socket, ctx] of sockets) {
+    if (!ctx.closed && ctx.sessionId && !socket.destroyed)
+      response(socket, { method: 'notifications/tools/list_changed' });
+  }
+}
+
 function connectedSessionIds(): Set<string> {
   const sessionIds = new Set<string>();
   for (const [socket, ctx] of sockets) {
@@ -139,6 +146,61 @@ async function controlTool(
   lifetime?: RequestLifetime,
 ): Promise<unknown | typeof NOT_A_CONTROL_TOOL> {
   if (!ctx.sessionId) throw new Error('MCP session is not initialized');
+  if (name === 'dwb_external_mcp_list_tools') {
+    if (!externalMcpManager) throw new Error('External MCP manager is not ready');
+    const rawServerId = typeof args.server_id === 'string' ? args.server_id.trim() : '';
+    const query = typeof args.query === 'string' ? args.query.trim().toLowerCase() : '';
+    const includeSchema = args.include_schema === true;
+    const requestedLimit = Number(args.limit ?? 50);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.max(1, Math.min(100, Math.floor(requestedLimit)))
+      : 50;
+    const tools = await externalMcpManager.listTools(
+      sessionId,
+      brokerTools.map((tool) => tool.name),
+    );
+    const matchingTools = tools.filter((tool) => {
+      if (rawServerId && !tool.name.startsWith(`${rawServerId}__`)) return false;
+      return (
+        !query ||
+        tool.name.toLowerCase().includes(query) ||
+        tool.description?.toLowerCase().includes(query)
+      );
+    });
+    const selectedTools = matchingTools.slice(0, limit).map((tool) => ({
+      name: tool.name,
+      ...(tool.description ? { description: tool.description } : {}),
+      ...(includeSchema ? { inputSchema: tool.inputSchema } : {}),
+      ...(tool.annotations ? { annotations: tool.annotations } : {}),
+    }));
+    return textResult({
+      tools: selectedTools,
+      total: matchingTools.length,
+      returned: selectedTools.length,
+      truncated: selectedTools.length < matchingTools.length,
+      servers: externalMcpManager.getStatus(),
+    });
+  }
+  if (name === 'dwb_external_mcp_call_tool') {
+    if (!externalMcpManager) throw new Error('External MCP manager is not ready');
+    const externalName = typeof args.name === 'string' ? args.name.trim() : '';
+    if (!externalName)
+      throw new Error('name is required. List external tools and pass its exact name.');
+    const externalArguments = args.arguments ?? {};
+    if (
+      typeof externalArguments !== 'object' ||
+      externalArguments === null ||
+      Array.isArray(externalArguments)
+    )
+      throw new Error('arguments must be an object.');
+    if (!externalMcpManager.isManagedTool(sessionId, externalName))
+      throw new Error(`Unknown external MCP tool: ${externalName}`);
+    return externalMcpManager.callTool(
+      sessionId,
+      externalName,
+      externalArguments as Record<string, unknown>,
+    );
+  }
   if (name === 'dwb_bridge_status') {
     const session = registry.sessionStatus(sessionId) as any;
     const worker = session.workerStatus ?? {};
@@ -155,7 +217,11 @@ async function controlTool(
     return textResult({
       ...registry.status,
       agentTasks: agentTasks.summary(),
-      autonomousAgents: autonomousAgents?.status() ?? { enabled: false, running: 0, queuedLaunches: 0 },
+      autonomousAgents: autonomousAgents?.status() ?? {
+        enabled: false,
+        running: 0,
+        queuedLaunches: 0,
+      },
     });
   if (name === 'dwb_session_status') {
     const logicalWorkspace = workspaceStore.current(sessionId);
@@ -484,7 +550,9 @@ async function handle(
   if (message.method === 'external_mcp_manage') {
     if (!externalMcpController) throw new Error('External MCP manager is not ready');
     if (message.params?.action !== 'list') lifetime.begin();
-    return externalMcpController.handle(message.params ?? {});
+    const result = await externalMcpController.handle(message.params ?? {});
+    if (message.params?.action !== 'list') notifyToolListChanged();
+    return result;
   }
   if (!ctx.sessionId) throw new Error('hello must be sent before broker requests');
   const sessionId = await registry.resolveContext(ctx.sessionId, requestContext(message));
@@ -642,7 +710,8 @@ function accept(socket: Socket): void {
       void registry
         .detach(sessionId)
         .then(() => {
-          if (!connectedSessionIds().has(sessionId)) return externalMcpManager?.closeSession(sessionId);
+          if (!connectedSessionIds().has(sessionId))
+            return externalMcpManager?.closeSession(sessionId);
         })
         .catch(() => {});
     }

@@ -26,6 +26,6 @@
 
 > N3zuui Studio เป็นตัวกลาง MCP แบบหลาย worker สำหรับ Windows โค้ดและแบรนด์ที่สร้างโดย N3zuui อยู่ภายใต้ Proprietary License ส่วนโค้ด upstream และโปรแกรมภายนอกยังอยู่ตาม license ของเจ้าของเดิม โปรแกรมนี้เป็นโครงการอิสระ ไม่ใช่ผลิตภัณฑ์ทางการของ OpenAI หรือ Desktop Commander
 
-## DWB launcher
+## N3zuui launcher
 
-`DWB MCP Studio.exe` เป็น launcher ของ N3zuui เอง สร้างจาก `scripts/launcher.cs` ด้วย `scripts/build-launcher.ps1` พร้อมไอคอนจากโลโก้ผู้พัฒนา จึงรวมใน Git และ release ได้ภายใต้ LICENSE ของ N3zuui สำหรับส่วนต้นฉบับของ N3zuui; โค้ด upstream และโปรแกรมภายนอกยังดาวน์โหลด/ใช้ตาม license เดิม
+`N3zuui Studio.exe` เป็น launcher ของ N3zuui เอง สร้างจาก `scripts/launcher.cs` ด้วย `scripts/build-launcher.ps1` พร้อมไอคอนจากโลโก้ผู้พัฒนา จึงรวมใน Git และ release ได้ภายใต้ LICENSE ของ N3zuui สำหรับส่วนต้นฉบับของ N3zuui; โค้ด upstream และโปรแกรมภายนอกยังดาวน์โหลด/ใช้ตาม license เดิม

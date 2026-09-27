@@ -409,7 +409,7 @@ if($UiTest){
   if((Find 'GitHubProgress').Visibility -ne [Windows.Visibility]::Visible){throw 'GitHub installation progress is not shown while work is running.'}
   $githubServer=[pscustomobject]@{
     source='github';repositoryUrl='https://github.com/example/raven-mcp';repositoryRef='main'
-    packageName='raven-mcp';packageVersion='1.2.3';installDirectory='C:\DWB\mcp-servers\raven-mcp'
+    packageName='raven-mcp';packageVersion='1.2.3';installDirectory='C:\N3zuui\mcp-servers\raven-mcp'
   }
   $edited=Preserve-McpManagedMetadata @{id='raven-mcp'} $githubServer
   foreach($field in @('source','repositoryUrl','repositoryRef','packageName','packageVersion','installDirectory')){

@@ -6,6 +6,6 @@ try {
   applyConfig(config);
   await import('../dist/index.js');
 } catch (error) {
-  console.error(`DWB Core: ${error.message}`);
+  console.error(`N3zuui Core: ${error.message}`);
   process.exitCode = 1;
 }

@@ -120,7 +120,7 @@ async function main() {
       inspectBroker(brokerEndpoint()),
       recentEvents(process.env.DWB_EVENT_LOG_PATH || resolve(dataDir(), 'logs', 'events.jsonl')),
     ]);
-    // Read only the log recorded for DWB's own tunnel, never another profile.
+    // Read only the log recorded for N3zuui's own tunnel, never another profile.
     try {
       const tunnelRoot = resolve(dataDir(), 'tunnel');
       const state = JSON.parse(await readFile(resolve(tunnelRoot, 'process.json'), 'utf8'));

@@ -1,6 +1,6 @@
 # ทำงานหลาย Agent ข้ามแชทใน Workspace เดียว
 
-DWB รองรับการให้ MCP session หลายตัวทำงานใน workspace เดียวกัน โดยมี task board กลางใน SQLite สำหรับแบ่งงานและจองขอบเขตไฟล์
+N3zuui รองรับการให้ MCP session หลายตัวทำงานใน workspace เดียวกัน โดยมี task board กลางใน SQLite สำหรับแบ่งงานและจองขอบเขตไฟล์
 Main Agent, Planner, Coder, Tester และ Reviewer สามารถอยู่คนละ ChatGPT chat แต่ bind workspace เดียวกันได้ Broker จะส่งงาน, handoff และข้อความข้าม session ให้เอง โดยไม่ต้องให้ agent เปิดแชทหรือส่งข้อความด้วยวิธีอื่น
 
 ## วิธีใช้
@@ -134,7 +134,7 @@ broker จะส่ง `handoff_ack` กลับไปยัง Agent ต้น
 worker A complete → worker B task_handoff → worker B complete → main agent
 ```
 
-การส่งข้อความ, notification และการปลุก `wait` เป็นอัตโนมัติที่ broker เมื่อ MCP session ยังเชื่อมอยู่ broker จะคืน agent ที่ถูกพักกลับเป็น `active` ก่อน dispatch งานค้างให้เอง และ DWB client จะ reconnect broker เบื้องหลังพร้อม session เดิมเมื่อ broker ถูก restart โดยไม่ต้องรอ tool call ใหม่ หาก host สร้าง MCP session ใหม่แต่ส่ง logical chat context เดิมกลับมา การ bind workspace จะ rebind agent เดิมให้เองด้วย จึงไม่ต้อง register ซ้ำ Agent แต่ละตัวสามารถเรียก `dwb_agent action=send` ส่งข้อความตรงข้ามแชท หรือใช้ `dwb_task action=complete` เพื่อให้ broker ส่ง handoff ไปยัง task ถัดไป หาก host ปิด session และต้องการให้มี worker ทำงานต่อโดยไม่ต้องเปิดแชทค้าง ให้เปิด autonomous mode; broker จะใช้ `codex exec --ephemeral` เป็น worker process แยกและเชื่อม DWB MCP โดยตรง
+การส่งข้อความ, notification และการปลุก `wait` เป็นอัตโนมัติที่ broker เมื่อ MCP session ยังเชื่อมอยู่ broker จะคืน agent ที่ถูกพักกลับเป็น `active` ก่อน dispatch งานค้างให้เอง และ N3zuui client จะ reconnect broker เบื้องหลังพร้อม session เดิมเมื่อ broker ถูก restart โดยไม่ต้องรอ tool call ใหม่ หาก host สร้าง MCP session ใหม่แต่ส่ง logical chat context เดิมกลับมา การ bind workspace จะ rebind agent เดิมให้เองด้วย จึงไม่ต้อง register ซ้ำ Agent แต่ละตัวสามารถเรียก `dwb_agent action=send` ส่งข้อความตรงข้ามแชท หรือใช้ `dwb_task action=complete` เพื่อให้ broker ส่ง handoff ไปยัง task ถัดไป หาก host ปิด session และต้องการให้มี worker ทำงานต่อโดยไม่ต้องเปิดแชทค้าง ให้เปิด autonomous mode; broker จะใช้ `codex exec --ephemeral` เป็น worker process แยกและเชื่อม N3zuui MCP โดยตรง
 
 เปิด autonomous mode ใน `%LOCALAPPDATA%\DWB-MCP-Studio\config.json`:
 
@@ -161,11 +161,11 @@ Agent ที่ยังทำงานอยู่ควรเรียก `dwb
 - หาก agent ไม่ heartbeat เกิน lease ระบบจะเปลี่ยน agent เป็น `paused` และคืน task ที่กำลังทำกลับเป็น `queued`; ถ้า MCP session เดิมยังเชื่อมอยู่ broker จะปลุกกลับเป็น `active` และ dispatch งานให้อัตโนมัติ
 - agent ที่ lease หมดอายุจะถูกบล็อกไม่ให้เขียนจนกว่า heartbeat หรือ register ใหม่
 - `changed_files` ต้องเป็น path แบบ relative ภายใน workspace และห้ามใช้ glob; broker จะปฏิเสธ path นอก workspace
-- file lock และ stale-write protection เดิมของ DWB ยังทำงานร่วมกันตามปกติ
+- file lock และ stale-write protection เดิมของ N3zuui ยังทำงานร่วมกันตามปกติ
 
 ## เครื่องมือที่เพิ่ม
 
 - `dwb_agent`: `register`, `heartbeat`, `status`, `list`, `inbox`, `ack`
 - `dwb_task`: `create`, `delegate`, `list`, `claim`, `dispatch`, `complete`, `handoff`, `release`, `block`, `cancel`, `reopen`, `history`
 
-ข้อมูล agent และ task เก็บในฐานข้อมูล workspace เดิมของ DWB จึงอยู่ร่วมกับ workspace binding และยังคงอยู่เมื่อ broker restart
+ข้อมูล agent และ task เก็บในฐานข้อมูล workspace เดิมของ N3zuui จึงอยู่ร่วมกับ workspace binding และยังคงอยู่เมื่อ broker restart

@@ -67,7 +67,7 @@ try {
     JSON.stringify(
       {
         mcpServers: {
-          'dwb-core': {
+          'n3zuui-core': {
             command: process.execPath,
             args: [start],
             env: {
@@ -82,7 +82,7 @@ try {
     ) + '\n',
   );
   console.log(
-    `Saved configuration: ${configPath()}\nMCP client configuration: ${clientConfig}\nRun node scripts/doctor.mjs to check the setup.\nConnect one client with: node scripts/connect.mjs install --client <id>\nConnect detected clients with: node scripts/connect.mjs install --all\nUse DWB MCP Studio.exe to open the app.`,
+    `Saved configuration: ${configPath()}\nMCP client configuration: ${clientConfig}\nRun node scripts/doctor.mjs to check the setup.\nConnect one client with: node scripts/connect.mjs install --client <id>\nConnect detected clients with: node scripts/connect.mjs install --all\nUse N3zuui Studio.exe to open the app.`,
   );
 } catch (error) {
   console.error(error.message);

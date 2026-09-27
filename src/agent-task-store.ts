@@ -506,9 +506,7 @@ export class AgentTaskStore {
         sessionId,
       ]);
       if (occupied) {
-        return String(occupied.workspace_id) === workspaceId
-          ? this.agentView(occupied)
-          : null;
+        return String(occupied.workspace_id) === workspaceId ? this.agentView(occupied) : null;
       }
       const row = this.db.one<any>(
         "SELECT * FROM workspace_agents WHERE workspace_id=? AND context_key=? AND status='paused' ORDER BY updated_at DESC,created_at,id LIMIT 1",

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { access, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -102,7 +102,7 @@ test('server entries use the client transport shape and preserve DWB runtime pat
   });
 });
 
-test('merge updates only DWB entry, preserves unrelated servers, and accepts JSONC', () => {
+test('merge renames the legacy DWB entry to N3zuui, preserves unrelated servers, and accepts JSONC', () => {
   const input = `{
     // Existing client settings stay intact.
     "mcpServers": {
@@ -122,7 +122,7 @@ test('merge updates only DWB entry, preserves unrelated servers, and accepts JSO
   assert.deepEqual(merged, {
     mcpServers: {
       other: { command: 'other-server' },
-      'dwb-core': {
+      'n3zuui-core': {
         command: 'new-node',
         args: ['new-start.mjs'],
         env: { DWB_CONFIG_FILE: 'config.json' },
@@ -136,7 +136,7 @@ test('merge updates only DWB entry, preserves unrelated servers, and accepts JSO
     entry: { type: 'stdio', command: 'node', args: ['start.mjs'] },
   });
   assert.deepEqual(vscode.servers.other, { type: 'stdio' });
-  assert.deepEqual(vscode.servers['dwb-core'], {
+  assert.deepEqual(vscode.servers['n3zuui-core'], {
     type: 'stdio',
     command: 'node',
     args: ['start.mjs'],
@@ -147,6 +147,13 @@ test('install creates the target, backs up existing config, and writes a readabl
   const root = await mkdtemp(join(tmpdir(), 'dwb-client-config-'));
   const target = join(root, 'client', 'mcp.json');
   try {
+    await mkdir(join(root, 'client'), { recursive: true });
+    await writeFile(
+      target,
+      JSON.stringify({
+        mcpServers: { 'dwb-core': { command: 'old-node' }, other: { command: 'keep' } },
+      }),
+    );
     await installClientConfig({
       clientId: 'cursor',
       configFile: target,
@@ -157,7 +164,8 @@ test('install creates the target, backs up existing config, and writes a readabl
     });
     assert.deepEqual(JSON.parse(await readFile(target, 'utf8')), {
       mcpServers: {
-        'dwb-core': {
+        other: { command: 'keep' },
+        'n3zuui-core': {
           type: 'stdio',
           command: 'node.exe',
           args: ['start.mjs'],
@@ -182,9 +190,10 @@ test('install creates the target, backs up existing config, and writes a readabl
     );
     assert.equal((await stat(target)).isFile(), true);
     assert.equal(
-      JSON.parse(await readFile(target, 'utf8')).mcpServers['dwb-core'].command,
+      JSON.parse(await readFile(target, 'utf8')).mcpServers['n3zuui-core'].command,
       'node-2.exe',
     );
+    assert.equal(JSON.parse(await readFile(target, 'utf8')).mcpServers['dwb-core'], undefined);
     await access(target);
   } finally {
     await rm(root, { recursive: true, force: true });

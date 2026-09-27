@@ -28,7 +28,7 @@ async function connectOnce(timeoutMs = 400): Promise<Socket> {
     const socket = createConnection(endpoint);
     const timer = setTimeout(() => {
       socket.destroy();
-      rejectConnect(new Error(`Timed out connecting to DWB broker at ${endpoint}`));
+      rejectConnect(new Error(`Timed out connecting to N3zuui broker at ${endpoint}`));
     }, timeoutMs);
     socket.once('connect', () => {
       clearTimeout(timer);
@@ -58,7 +58,7 @@ async function connectWithAutostart(): Promise<Socket> {
     return await connectOnce();
   } catch {
     if (process.env.DWB_BROKER_AUTOSTART === 'false')
-      throw new Error(`DWB broker is not running at ${endpoint}`);
+      throw new Error(`N3zuui broker is not running at ${endpoint}`);
     startBroker();
   }
   let last: unknown = null;
@@ -70,7 +70,7 @@ async function connectWithAutostart(): Promise<Socket> {
       last = error;
     }
   }
-  throw new Error(`DWB broker did not become ready: ${String(last)}`);
+  throw new Error(`N3zuui broker did not become ready: ${String(last)}`);
 }
 
 type Pending = {
@@ -103,7 +103,7 @@ export class BrokerClient {
     });
     socket.on('close', () => {
       if (this.socket !== socket) return;
-      this.failPending(new Error('DWB broker connection closed'));
+      this.failPending(new Error('N3zuui broker connection closed'));
       this.scheduleReconnect();
     });
     socket.on('error', (error) => {
@@ -215,7 +215,7 @@ export class BrokerClient {
   }
 
   private async ensureConnected(): Promise<void> {
-    if (this.explicitlyClosed) throw new Error('DWB broker client is closed');
+    if (this.explicitlyClosed) throw new Error('N3zuui broker client is closed');
     if (this.reconnectPromise) return this.reconnectPromise;
     if (!this.socket.destroyed) return;
     this.reconnectPromise = (async () => {
@@ -252,7 +252,8 @@ export class BrokerClient {
     signal?: AbortSignal,
   ): Promise<unknown> {
     if (signal?.aborted) return Promise.reject(signal.reason);
-    if (this.socket.destroyed) return Promise.reject(new Error('DWB broker connection is closed'));
+    if (this.socket.destroyed)
+      return Promise.reject(new Error('N3zuui broker connection is closed'));
     const id = randomUUID();
     const message: BrokerRequest = { id, method, params, deadline: Date.now() + timeoutMs };
     return new Promise((resolveRequest, rejectRequest) => {

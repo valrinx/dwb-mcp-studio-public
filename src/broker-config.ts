@@ -6,8 +6,10 @@ function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-/** Load saved DWB settings when the broker is started directly by an MCP client. */
-export function applySavedBrokerConfig(configFile = process.env.DWB_CONFIG_FILE || resolve(dataDir(), 'config.json')): void {
+/** Load saved N3zuui settings when the broker is started directly by an MCP client. */
+export function applySavedBrokerConfig(
+  configFile = process.env.DWB_CONFIG_FILE || resolve(dataDir(), 'config.json'),
+): void {
   const path = resolve(configFile);
   if (!process.env.DWB_CONFIG_FILE) process.env.DWB_CONFIG_FILE = path;
   try {

@@ -147,7 +147,7 @@ $timer.Add_Tick({
   if (Test-Path -LiteralPath $phasePath) {
     try {
       $phase = [IO.File]::ReadAllText($phasePath)
-      $messages = @{ runtime='กำลังตรวจและปิด broker เดิมที่จบงานแล้ว · อาจใช้เวลาประมาณ 75 วินาที…'; checking='กำลังตรวจเครื่องและโฟลเดอร์งาน…'; migrating='กำลังนำส่วนประกอบจาก DWB รุ่นเดิมมาใช้…'; external='กำลังติดตั้ง Desktop Commander และ tunnel-client ลง external ของ DWB…'; installing='กำลังดาวน์โหลดส่วนประกอบ DWB จาก npm…'; building='กำลังเตรียมโปรแกรมจาก source…'; saving='กำลังบันทึกการตั้งค่า…'; verifying='กำลังตรวจการตั้งค่าครั้งสุดท้าย…' }
+      $messages = @{ runtime='กำลังตรวจและปิด broker เดิมที่จบงานแล้ว · อาจใช้เวลาประมาณ 75 วินาที…'; checking='กำลังตรวจเครื่องและโฟลเดอร์งาน…'; migrating='กำลังนำส่วนประกอบจาก N3zuui รุ่นเดิมมาใช้…'; external='กำลังติดตั้ง Desktop Commander และ tunnel-client ลง external ของ N3zuui…'; installing='กำลังดาวน์โหลดส่วนประกอบ N3zuui จาก npm…'; building='กำลังเตรียมโปรแกรมจาก source…'; saving='กำลังบันทึกการตั้งค่า…'; verifying='กำลังตรวจการตั้งค่าครั้งสุดท้าย…' }
       if ($messages.ContainsKey($phase)) { $resultLabel.Text = $messages[$phase] }
     } catch {}
   }
@@ -216,7 +216,7 @@ $connectClients.Add_Click({
     $raw = Invoke-DwbNode $node ($arguments + @('--json')) (Split-Path -Parent $PSScriptRoot)
     $connected = @($raw | ConvertFrom-Json).Count
     $resultLabel.Foreground = $Green
-    $resultLabel.Text = "เชื่อมต่อ AI client แล้ว $connected ตัว · ปิด/เปิดหรือ reload client เพื่อเริ่ม dwb-core"
+    $resultLabel.Text = "เชื่อมต่อ AI client แล้ว $connected ตัว · ปิด/เปิดหรือ reload client เพื่อเริ่ม n3zuui-core"
   } catch { $resultLabel.Foreground = $Orange; $resultLabel.Text = 'เชื่อมต่อ AI client ยังไม่สำเร็จ · ' + $_.Exception.Message }
 })
 $showFile.Add_Click({

@@ -1,14 +1,14 @@
-# ลอง DWB บนเครื่อง Windows ใหม่
+# ลอง N3zuui บนเครื่อง Windows ใหม่
 
 ชุด `source-test.zip` จำลองการดาวน์โหลด source จาก Git ไม่มี `dist`, `node_modules`, `external` หรือข้อมูลจากเครื่องผู้พัฒนา ไม่ต้องติดตั้ง Git เพื่อใช้ชุดทดสอบนี้
 
 ## เริ่มตั้งแต่เครื่องเปล่า
 
 1. ใช้ Windows 64-bit ที่ต่ออินเทอร์เน็ต แตก ZIP ลงโฟลเดอร์ที่บัญชีคุณเขียนไฟล์ได้ เช่นโฟลเดอร์ Documents ของคุณ ให้แตกทั้งชุดก่อนเปิดโปรแกรม
-2. เปิด `DWB MCP Studio.exe` ได้เลย แม้ยังไม่มี Node.js หน้า Setup ควรเปิดและแจ้งว่ายังขาด Node
+2. เปิด `N3zuui Studio.exe` ได้เลย แม้ยังไม่มี Node.js หน้า Setup ควรเปิดและแจ้งว่ายังขาด Node
 3. กดปุ่มติดตั้ง Node.js เพื่อเปิดเว็บไซต์เจ้าของ ติดตั้ง Node.js 22.16 ขึ้นไปพร้อม npm แล้วกลับมากด **ตรวจซ้ำ** ถ้ายังไม่พบ ให้ปิดและเปิด Setup ใหม่
 4. สร้างโฟลเดอร์งานว่างสำหรับทดสอบ แล้วเลือกโฟลเดอร์นี้ใน Setup ตั้ง worker เป็น 4
-5. กด **ติดตั้งและเตรียมใช้งาน** รอให้โปรแกรมดาวน์โหลด Desktop Commander และ tunnel-client ลง `external` ติดตั้ง library ของ DWB และ build source เป็น `dist`
+5. กด **ติดตั้งและเตรียมใช้งาน** รอให้โปรแกรมดาวน์โหลด Desktop Commander และ tunnel-client ลง `external` ติดตั้ง library ของ N3zuui และ build source เป็น `dist`
 6. เมื่อสำเร็จจะเปิด Dashboard กด **Start MCP** เพื่อเปิดหน้ากรอก Tunnel ID สำหรับทดสอบและ API key ที่มีสิทธิ์ใช้ tunnel นี้ แล้วกด Start MCP ในหน้านั้น ใช้ Tunnel ID แยกจากระบบที่เปิดอยู่ในเครื่องเดิม
 7. เชื่อม tunnel นี้ใน ChatGPT ตามขั้นตอนของ OpenAI แล้วลองข้อความด้านล่าง
 
@@ -18,7 +18,7 @@
 
 ### ตรวจการเชื่อมต่อ
 
-> ใช้ DWB เรียก dwb_broker_status และ dwb_session_status แล้วบอกว่าเชื่อมต่อได้หรือไม่
+> ใช้ N3zuui เรียก dwb_broker_status และ dwb_session_status แล้วบอกว่าเชื่อมต่อได้หรือไม่
 
 ต้องได้ผลจากเครื่องมือจริง การที่หน้าต่างแสดงพร้อมเพียงอย่างเดียวยังไม่ยืนยันว่า ChatGPT เชื่อมครบเส้นทาง
 
@@ -26,20 +26,20 @@
 
 แทน `<โฟลเดอร์ทดสอบเต็ม>` ด้วยโฟลเดอร์ที่เลือกใน Setup:
 
-> ใช้ DWB ทำงานใน <โฟลเดอร์ทดสอบเต็ม> ตั้งชื่อ workspace ว่า “ร้านทดลอง” แล้วสร้าง hello.txt เขียนว่า “ทดสอบเครื่องใหม่” แสดง session ID และ working directory ให้ด้วย
+> ใช้ N3zuui ทำงานใน <โฟลเดอร์ทดสอบเต็ม> ตั้งชื่อ workspace ว่า “ร้านทดลอง” แล้วสร้าง hello.txt เขียนว่า “ทดสอบเครื่องใหม่” แสดง session ID และ working directory ให้ด้วย
 
 ### แชทใหม่: ใช้ชื่อเดิม
 
-> ใช้ DWB เลือก workspace ร้านทดลอง อ่าน hello.txt แล้วแสดง session ID และ working directory
+> ใช้ N3zuui เลือก workspace ร้านทดลอง อ่าน hello.txt แล้วแสดง session ID และ working directory
 
 ควรพบไฟล์เดิมโดยไม่ต้องบอก path ซ้ำ แชทควรมี session แยกเมื่อ client ส่ง metadata ระบุแชทได้ครบ การเลือก workspace ไม่ได้ย้ายประวัติแชทหรือ process เดิมมา
 
 ### การเปิดและปิด
 
 - ปิดหน้าต่าง Connect แล้วเรียกเครื่องมือจากแชท: tunnel ควรยังทำงาน
-- เปิด `DWB MCP Studio.exe` อีกครั้ง: ควรเห็นสถานะเดิม และกด Stop ได้
+- เปิด `N3zuui Studio.exe` อีกครั้ง: ควรเห็นสถานะเดิม และกด Stop ได้
 - กด Start ใหม่: ถ้าเลือกจำ API key ควรใช้ key เดิมได้
-- รีสตาร์ต Windows: เปิด `DWB MCP Studio.exe` แล้วกด Start ด้วยตัวเอง รุ่นนี้ไม่ตั้ง autorun
+- รีสตาร์ต Windows: เปิด `N3zuui Studio.exe` แล้วกด Start ด้วยตัวเอง รุ่นนี้ไม่ตั้ง autorun
 
 ## จดผลกลับมา
 

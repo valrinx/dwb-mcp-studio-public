@@ -22,6 +22,8 @@ const inheritedEnv = Object.fromEntries(
 );
 const env = {
   ...inheritedEnv,
+  DWB_DATA_DIR: testDir,
+  DWB_CONFIG_FILE: resolve(testDir, 'config.json'),
   DWB_BROKER_PIPE: pipe,
   DWB_WORKER_CAP: '1',
   DWB_BROKER_AUTOSTART: 'true',
@@ -59,10 +61,18 @@ async function modern() {
       throw new Error(`Unexpected modern version: ${client.getNegotiatedProtocolVersion()}`);
     const names = new Set(tools.tools.map((tool) => tool.name));
     if (
-      tools.tools.length !== 34 ||
-      !['workspace', 'dwb_broker_status', 'dwb_session_status'].every((name) => names.has(name))
+      tools.tools.length < 34 ||
+      ![
+        'workspace',
+        'dwb_broker_status',
+        'dwb_session_status',
+        'dwb_external_mcp_list_tools',
+        'dwb_external_mcp_call_tool',
+      ].every((name) => names.has(name))
     ) {
-      throw new Error('Modern tool surface mismatch');
+      throw new Error(
+        `Modern tool surface mismatch (${tools.tools.length}): ${[...names].join(', ')}`,
+      );
     }
     if (
       resources.resources.length !== 2 ||
@@ -95,10 +105,18 @@ async function legacy() {
     const resources = await client.listResources();
     const names = new Set(tools.tools.map((tool) => tool.name));
     if (
-      tools.tools.length !== 34 ||
-      !['workspace', 'dwb_broker_status', 'dwb_session_status'].every((name) => names.has(name))
+      tools.tools.length < 34 ||
+      ![
+        'workspace',
+        'dwb_broker_status',
+        'dwb_session_status',
+        'dwb_external_mcp_list_tools',
+        'dwb_external_mcp_call_tool',
+      ].every((name) => names.has(name))
     ) {
-      throw new Error('Legacy tool surface mismatch');
+      throw new Error(
+        `Legacy tool surface mismatch (${tools.tools.length}): ${[...names].join(', ')}`,
+      );
     }
     if (resources.resources.length !== 2) throw new Error('Legacy resource proxy mismatch');
     const status: any = await client.callTool({ name: 'dwb_broker_status', arguments: {} });

@@ -24,5 +24,5 @@ try {
   foreach($item in $images){$writer.Write([byte[]]$item.Bytes)}
 } finally {$writer.Dispose();$stream.Dispose()}
 $compiler=Join-Path ([Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()) 'csc.exe'
-& $compiler /nologo /target:winexe /platform:anycpu /reference:System.Windows.Forms.dll ('/win32icon:'+$iconPath) ('/out:'+(Join-Path $root 'DWB MCP Studio.exe')) (Join-Path $PSScriptRoot 'launcher.cs')
+& $compiler /nologo /target:winexe /platform:anycpu /reference:System.Windows.Forms.dll ('/win32icon:'+$iconPath) ('/out:'+(Join-Path $root 'N3zuui Studio.exe')) (Join-Path $PSScriptRoot 'launcher.cs')
 if($LASTEXITCODE -ne 0){throw 'N3zuui launcher compilation failed.'}

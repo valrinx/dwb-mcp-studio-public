@@ -165,7 +165,7 @@ async function closeConnection(connection: ConnectedServer): Promise<void> {
   } catch {}
 }
 
-/** Manages isolated stdio MCP child processes for each DWB session. */
+/** Manages isolated stdio MCP child processes for each N3zuui session. */
 export class ExternalMcpManager {
   private definitions = new Map<string, ExternalMcpDefinition>();
   private sessions = new Map<string, SessionRuntime>();

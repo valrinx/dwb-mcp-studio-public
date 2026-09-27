@@ -31,7 +31,12 @@ export async function previousInstall(configFile, target = app) {
     if (!entry.toLowerCase().endsWith((sep + workerSuffix).toLowerCase())) return null;
     const root = entry.slice(0, -workerSuffix.length - 1);
     if (root.toLowerCase() === target.toLowerCase()) return null;
-    if ((await json(join(root, 'package.json'))).name !== 'dwb-mcp-studio-core') return null;
+    if (
+      !['dwb-mcp-studio-core', 'n3zuui-mcp-studio-core'].includes(
+        (await json(join(root, 'package.json'))).name,
+      )
+    )
+      return null;
     if (!(await exists(entry))) return null;
     return root;
   } catch {
@@ -114,7 +119,7 @@ export async function migrate(configFile, target = app) {
       (await exists(join(old, 'node_modules'))) &&
       (await copyOwned(join(old, 'node_modules'), join(target, 'node_modules')))
     )
-      reused.push('DWB dependencies');
+      reused.push('N3zuui dependencies');
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }

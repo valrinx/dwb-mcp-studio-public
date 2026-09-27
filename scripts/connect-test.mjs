@@ -44,7 +44,10 @@ test('connect CLI installs one client config with a machine-readable result', as
     const firstResult = JSON.parse(first.stdout);
     assert.equal(firstResult.clientId, 'cursor');
     assert.equal(firstResult.backupFile, null);
-    assert.equal(JSON.parse(await readFile(target, 'utf8')).mcpServers['dwb-core'].type, 'stdio');
+    assert.equal(
+      JSON.parse(await readFile(target, 'utf8')).mcpServers['n3zuui-core'].type,
+      'stdio',
+    );
 
     const second = await invoke([
       'install',
@@ -66,7 +69,7 @@ test('connect CLI installs one client config with a machine-readable result', as
     const secondResult = JSON.parse(second.stdout);
     assert.equal(typeof secondResult.backupFile, 'string');
     assert.equal(
-      JSON.parse(await readFile(target, 'utf8')).mcpServers['dwb-core'].command,
+      JSON.parse(await readFile(target, 'utf8')).mcpServers['n3zuui-core'].command,
       'node-2.exe',
     );
   } finally {

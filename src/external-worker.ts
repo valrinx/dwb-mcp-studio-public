@@ -4,7 +4,7 @@ import { dirname, isAbsolute, resolve } from 'node:path';
 export function externalWorker(entry = process.env.DWB_WORKER_ENTRY) {
   if (!entry || !isAbsolute(entry))
     throw new Error(
-      'Set DWB_WORKER_ENTRY to the absolute dist/index.js path of your separately installed Desktop Commander. Open DWB MCP Studio.exe to complete Setup, or run npm run configure.',
+      'Set DWB_WORKER_ENTRY to the absolute dist/index.js path of your separately installed Desktop Commander. Open N3zuui Studio.exe to complete Setup, or run npm run configure.',
     );
   const actualEntry = realpathSync(entry);
   const root = resolve(dirname(actualEntry), '..');

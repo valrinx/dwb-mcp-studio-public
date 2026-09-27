@@ -351,9 +351,8 @@ test('upgrades a legacy paused agent when its named role reconnects', async () =
     assert.equal(rebound.sessionId, 'session-legacy-reconnected');
     assert.equal(rebound.status, 'active');
     assert.equal(
-      (
-        db.one<any>('SELECT context_key FROM workspace_agents WHERE id=?', [original.id]) ?? {}
-      ).context_key,
+      (db.one<any>('SELECT context_key FROM workspace_agents WHERE id=?', [original.id]) ?? {})
+        .context_key,
       'meta.openai/session:sha256:legacy-planner',
     );
   } finally {
@@ -755,10 +754,7 @@ test('targeted work stays queued instead of falling back to another chat', async
       targetAgentId: target.id,
     } as any);
 
-    assert.throws(
-      () => tasks.claimTask(task.id, other.id),
-      /DWB_TASK_TARGET_NOT_AVAILABLE/,
-    );
+    assert.throws(() => tasks.claimTask(task.id, other.id), /DWB_TASK_TARGET_NOT_AVAILABLE/);
     assert.equal(tasks.dispatchQueuedTasks(), 0);
     assert.equal(tasks.getTask(task.id)?.status, 'queued');
     assert.equal(tasks.getTask(task.id)?.assignedAgentId, null);

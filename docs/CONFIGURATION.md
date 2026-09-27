@@ -2,7 +2,7 @@
 
 ## Local MCP clients
 
-Run `DWB MCP Studio.exe` or `npm run configure`, then connect an AI client with the built-in connector installer. It merges only the `dwb-core` entry, creates a timestamped backup when a config already exists, and keeps unrelated MCP servers intact:
+Run `N3zuui Studio.exe` or `npm run configure`, then connect an AI client with the built-in connector installer. It writes the `n3zuui-core` entry, migrates the legacy `dwb-core` entry, creates a timestamped backup when a config already exists, and keeps unrelated MCP servers intact:
 
 ```powershell
 # See supported adapters and whether their standard config path exists
@@ -17,9 +17,9 @@ node scripts/connect.mjs install --all
 
 The supported standard adapters are Claude Desktop, Cursor, Windsurf, GitHub Copilot CLI, VS Code workspace `.vscode/mcp.json`, and portable workspace `.mcp.json`. Use `--config <file>` for a client that accepts MCP but stores its configuration elsewhere, for example `node scripts/connect.mjs install --client vscode --config "D:\Profiles\my-mcp.json"`. The generated generic file remains available at `%LOCALAPPDATA%\DWB-MCP-Studio\mcp-client.json` for clients that provide their own import or custom `mcpServers` path. The generated command uses the actual Node executable and this installation's `scripts/start.mjs`; paths containing spaces are separate JSON arguments.
 
-After installation, restart or reload the AI client so it starts `dwb-core`. The installer does not write API keys or alter other server definitions.
+After installation, restart or reload the AI client so it starts `n3zuui-core`. The installer does not write API keys or alter other server definitions.
 
-`DWB MCP Studio.exe` opens a Thai WPF setup window. It checks Node.js/npm, offers a workspace folder picker, downloads pinned Desktop Commander and tunnel-client into this installation's `external` folder, installs DWB libraries, saves configuration and runs Doctor. There are no worker/executable pickers. Existing compatible local dependencies are reused. See [external dependencies](EXTERNAL.md) for sources and validation. Setup diagnostics are saved under the user data directory's `logs/setup-*` folders.
+`N3zuui Studio.exe` opens a Thai WPF setup window. It checks Node.js/npm, offers a workspace folder picker, downloads pinned Desktop Commander and tunnel-client into this installation's `external` folder, installs N3zuui libraries, saves configuration and runs Doctor. There are no worker/executable pickers. Existing compatible local dependencies are reused. See [external dependencies](EXTERNAL.md) for sources and validation. Setup diagnostics are saved under the user data directory's `logs/setup-*` folders.
 
 Use `node <absolute path to scripts/start.mjs>` for MCP stdio. Do not use `npm start` as the transport command: npm prints a banner to stdout, which is reserved for MCP messages.
 
@@ -27,21 +27,21 @@ Use `node <absolute path to scripts/start.mjs>` for MCP stdio. Do not use `npm s
 
 ### OpenAI tunnel-client: built-in setup
 
-Complete machine Setup, then enter your Tunnel ID and runtime API key and click **Start MCP**. Only `external/tunnel-client/tunnel-client.exe` in this DWB installation is accepted, and the worker configuration must point to this installation's managed Desktop Commander. DWB writes its own profile and starts the client hidden. Open `DWB MCP Studio.exe` again to inspect status or Stop. By default, closing hides to tray and Windows startup is disabled. Change these choices in App preferences, including optional automatic MCP connection with a saved key.
+Complete machine Setup, then enter your Tunnel ID and runtime API key and click **Start MCP**. Only `external/tunnel-client/tunnel-client.exe` in this N3zuui installation is accepted, and the worker configuration must point to this installation's managed Desktop Commander. N3zuui writes its own profile and starts the client hidden. Open `N3zuui Studio.exe` again to inspect status or Stop. By default, closing hides to tray and Windows startup is disabled. Change these choices in App preferences, including optional automatic MCP connection with a saved key.
 
-The API key can be saved with Windows DPAPI under the current user account. An empty key field reuses the saved key; entering a new key replaces it on Start. Unchecking Remember and starting removes the saved encrypted key. No plaintext key is written to the profile or command line. The launcher supplies the decrypted key only in the tunnel process environment; `tunnel-mcp.mjs` removes it before loading the broker launcher. Profiles and process records are stored under the DWB data directory's `tunnel/` folder. Stop verifies the recorded PID, creation time and executable before stopping that process tree. It does not stop other tunnel profiles or the shared broker; already running background work in the broker can continue.
+The API key can be saved with Windows DPAPI under the current user account. An empty key field reuses the saved key; entering a new key replaces it on Start. Unchecking Remember and starting removes the saved encrypted key. No plaintext key is written to the profile or command line. The launcher supplies the decrypted key only in the tunnel process environment; `tunnel-mcp.mjs` removes it before loading the broker launcher. Profiles and process records are stored under the N3zuui data directory's `tunnel/` folder. Stop verifies the recorded PID, creation time and executable before stopping that process tree. It does not stop other tunnel profiles or the shared broker; already running background work in the broker can continue.
 
-DWB never imports another tunnel profile, changes its credentials, or creates a hosted tunnel. Create the tunnel in OpenAI and associate it with your chat client first. Use a distinct Tunnel ID when trying DWB alongside an existing active tunnel. Readiness comes from the client health endpoint; verify the full path by calling `dwb_broker_status` in the connected chat.
+N3zuui never imports another tunnel profile, changes its credentials, or creates a hosted tunnel. Create the tunnel in OpenAI and associate it with your chat client first. Use a distinct Tunnel ID when trying N3zuui alongside an existing active tunnel. Readiness comes from the client health endpoint; verify the full path by calling `dwb_broker_status` in the connected chat.
 
 The generated profile targets the `run --config` interface of tunnel-client 0.0.11. Other versions require verification. The executable remains an external user installation; no third-party binary is included in the release.
 
 ### Other connectors and manual configuration
 
-Install your chosen tunnel/remote connector separately. In its own configuration, set the local server command and arguments to those generated by DWB. Supply credentials using that connector's setup. DWB does not provide a hosted endpoint or HTTP authentication.
+Install your chosen tunnel/remote connector separately. In its own configuration, set the local server command and arguments to those generated by N3zuui. Supply credentials using that connector's setup. N3zuui does not provide a hosted endpoint or HTTP authentication.
 
-The connector must support custom local stdio commands. A connector which only exposes its own fixed Desktop Commander server cannot be inserted behind DWB without that capability. Follow your connector's documentation for its schema; the generic `mcpServers` JSON is not a universal tunnel profile.
+The connector must support custom local stdio commands. A connector which only exposes its own fixed Desktop Commander server cannot be inserted behind N3zuui without that capability. Follow your connector's documentation for its schema; the generic `mcpServers` JSON is not a universal tunnel profile.
 
-Prefer one adapter per independent MCP connection. If a tunnel multiplexes several chats into one adapter, it must forward stable logical-context metadata to obtain distinct workers. Without suitable metadata DWB cannot infer the identity of separate chats. Session IDs are local DWB identifiers.
+Prefer one adapter per independent MCP connection. If a tunnel multiplexes several chats into one adapter, it must forward stable logical-context metadata to obtain distinct workers. Without suitable metadata N3zuui cannot infer the identity of separate chats. Session IDs are local N3zuui identifiers.
 
 ## User files
 

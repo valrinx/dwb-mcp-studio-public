@@ -30,15 +30,19 @@ if (selected.some((suite) => !suites.includes(suite)))
   throw new Error('Unknown integration suite.');
 for (const suite of selected.length ? selected : suites) {
   console.log(`RUN ${suite}`);
-  const code = await new Promise((resolve, reject) => {
+  const code = await new Promise((resolveExit, reject) => {
     const child = spawn(process.execPath, ['--import', 'tsx', `src/${suite}.ts`], {
       cwd: root,
       stdio: 'inherit',
       windowsHide: true,
-      env: { ...process.env, DWB_DATA_DIR: testData },
+      env: {
+        ...process.env,
+        DWB_DATA_DIR: testData,
+        DWB_CONFIG_FILE: resolve(testData, 'config.json'),
+      },
     });
     child.on('error', reject);
-    child.on('exit', resolve);
+    child.on('exit', resolveExit);
   });
   if (code !== 0) throw new Error(`${suite} failed (${code})`);
 }

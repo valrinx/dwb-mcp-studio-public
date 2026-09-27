@@ -119,10 +119,10 @@ function roleMatch(required: string | null, available: string | null): boolean {
 function workerPrompt(profile: AutonomousAgentProfile): string {
   const capabilities = profile.capabilities.length ? profile.capabilities.join(', ') : '(none)';
   return [
-    'You are an autonomous worker session managed by DWB MCP Studio.',
-    'You may be one role in a cross-chat team. The Main Agent coordinates the work, while DWB routes durable assignments, handoffs, and direct messages across registered agent sessions.',
+    'You are an autonomous worker session managed by N3zuui MCP Studio.',
+    'You may be one role in a cross-chat team. The Main Agent coordinates the work, while N3zuui routes durable assignments, handoffs, and direct messages across registered agent sessions.',
     'Do not create, fork, open, or send work to another ChatGPT chat yourself.',
-    'Use DWB broker tools for all cross-agent communication and report task results through the assigned workflow.',
+    'Use N3zuui broker tools for all cross-agent communication and report task results through the assigned workflow.',
     `Agent name: ${profile.name}`,
     `Agent role: ${profile.role}`,
     `Agent capabilities: ${capabilities}`,
@@ -158,9 +158,9 @@ export function buildAutonomousAgentCommand(
     '--sandbox',
     sandbox,
     '-c',
-    `mcp_servers.dwb_core.command=${tomlString(process.execPath)}`,
+    'mcp_servers.n3zuui_core.command=' + tomlString(process.execPath),
     '-c',
-    `mcp_servers.dwb_core.args=[${[startScript, configFile].map(tomlString).join(',')}]`,
+    'mcp_servers.n3zuui_core.args=[' + [startScript, configFile].map(tomlString).join(',') + ']',
     workerPrompt(profile),
   ];
   const sandboxIndex = args.indexOf('--sandbox');
@@ -214,7 +214,10 @@ export class AutonomousAgentSupervisor {
           !text(task.targetAgentId) &&
           (task.requiredRole !== null || task.requiredCapabilities.length > 0),
       )
-      .sort((left, right) => right.priority - left.priority || left.updatedAt.localeCompare(right.updatedAt));
+      .sort(
+        (left, right) =>
+          right.priority - left.priority || left.updatedAt.localeCompare(right.updatedAt),
+      );
     let started = 0;
     for (const task of queued) {
       if (this.ensureWorkerForTask(snapshot, task)) started += 1;
@@ -241,8 +244,7 @@ export class AutonomousAgentSupervisor {
         roleMatch(task.requiredRole, agent.role) &&
         capabilitiesMatch(task.requiredCapabilities, agent.capabilities) &&
         !snapshot.tasks.some(
-          (other) =>
-            other.status === 'doing' && other.assignedAgentId === agent.id,
+          (other) => other.status === 'doing' && other.assignedAgentId === agent.id,
         ),
     );
     const active = candidates.find((agent) => agent.status === 'active');

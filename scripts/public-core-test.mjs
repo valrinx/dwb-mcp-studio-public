@@ -100,7 +100,7 @@ assert.deepEqual(
   'Configure must preserve a user-edited policy.',
 );
 const clientConfig = JSON.parse(await readFile(resolve(testDir, 'user data', 'mcp-client.json')))
-  .mcpServers['dwb-core'];
+  .mcpServers['n3zuui-core'];
 assert.equal(clientConfig.args[0], resolve(relocated, 'scripts', 'start.mjs'));
 
 const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
@@ -174,6 +174,8 @@ try {
     [
       'dwb_bridge_status',
       'dwb_broker_status',
+      'dwb_external_mcp_call_tool',
+      'dwb_external_mcp_list_tools',
       'dwb_session_status',
       'dwb_restart_worker',
       'dwb_list_sessions',

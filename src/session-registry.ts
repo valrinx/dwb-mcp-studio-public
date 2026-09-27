@@ -846,7 +846,7 @@ export class SessionRegistry {
       fp.sha256?.slice(0, 12) ??
       `${fp.exists ? 'exists' : 'missing'}:${fp.size}:${Math.round(fp.mtimeMs)}`;
     const text = [
-      'DWB stale-write protection blocked this mutation.',
+      'N3zuui stale-write protection blocked this mutation.',
       '',
       `File: ${error.path}`,
       `Expected version: ${short(error.expected)}`,
