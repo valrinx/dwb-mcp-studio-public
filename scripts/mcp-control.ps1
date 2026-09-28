@@ -20,7 +20,8 @@ function Get-MuseAiBridgeConfig([string]$Root=$script:RepoRoot){
 function Test-MuseAiBridge([int]$Port,[string]$Token){
   try{
     $req=[Net.WebRequest]::Create("http://127.0.0.1:$Port/health")
-    $req.Method='GET';$req.Timeout=2500
+    $req.Method='GET';$req.Timeout=800
+    $req.Proxy=$null  # localhost must never go through proxy autodetect (WPAD stalls the UI thread)
     if($Token){$req.Headers['Authorization']="Bearer $Token"}
     $resp=$req.GetResponse()
     $code=[int]$resp.StatusCode;$resp.Close()

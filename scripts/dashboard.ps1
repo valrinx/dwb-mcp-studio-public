@@ -91,7 +91,9 @@ function Update-TunnelCard{
   try{
     $mcpOn=Test-McpRunning
     $cfg=Get-MuseAiBridgeConfig
-    $bridgeUp=Test-MuseAiBridge $cfg.port $cfg.token
+    # Skip the blocking localhost probe when MCP is known-stopped: Update-TunnelCard
+    # runs on the UI thread every 3s, and the probe cannot change the card state then.
+    $bridgeUp=if($mcpOn){Test-MuseAiBridge $cfg.port $cfg.token}else{$false}
     $url=Get-MuseAiTunnelUrl
     if($mcpOn -and $bridgeUp -and $url){
       (Find 'TunnelStatus').Text='พร้อม'
