@@ -11,7 +11,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { stat } from 'node:fs/promises';
+import { stat, writeFile, unlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadBridgeConfig, cloudflaredBinary } from './bridge-config.mjs';
@@ -30,9 +30,26 @@ try {
   process.exit(1);
 }
 
+// Ephemeral public URL, read by the Muse AI dashboard screen (gitignored).
+const TUNNEL_URL_FILE = join(ROOT, 'tunnel.url');
+
 console.error(`[tunnel] forwarding http://127.0.0.1:${port} — waiting for public URL…`);
-const child = spawn(bin, ['tunnel', '--url', `http://127.0.0.1:${port}`], { stdio: 'inherit' });
+const child = spawn(bin, ['tunnel', '--url', `http://127.0.0.1:${port}`], { stdio: ['inherit', 'inherit', 'pipe'] });
+let urlSaved = false;
+child.stderr.on('data', (chunk) => {
+  process.stderr.write(chunk);
+  if (urlSaved) return;
+  const m = /https:\/\/[a-z0-9.-]+\.trycloudflare\.com/i.exec(chunk.toString());
+  if (m) {
+    urlSaved = true;
+    writeFile(TUNNEL_URL_FILE, m[0] + '\n').then(
+      () => console.error(`[tunnel] public URL saved to tunnel.url`),
+      () => {},
+    );
+  }
+});
 child.on('exit', (code, signal) => {
+  unlink(TUNNEL_URL_FILE).catch(() => {});
   console.error(`[tunnel] exited (code=${code} signal=${signal})`);
   process.exit(code ?? 0);
 });

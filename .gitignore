@@ -21,6 +21,7 @@ external/
 /mcp-client.json
 /base-policy.json
 /tunnel/
+/tunnel.url
 /setup.lock
 /bridge.config.json
 /bin/

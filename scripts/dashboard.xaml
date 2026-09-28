@@ -46,6 +46,7 @@
      <Button x:Name="Connection" Content="ตั้งค่า Tunnel / API key" Margin="0,14,0,0" Padding="8,12" Height="42"/>
      <Button x:Name="MachineSetup" Content="ตั้งค่าเครื่อง" Margin="0,10,0,0" Height="42"/>
      <Button x:Name="McpServers" Content="MCP Servers" Margin="0,10,0,0" Height="42"/>
+     <Button x:Name="MuseAI" Content="Muse AI" Margin="0,10,0,0" Height="42"/>
      <Button x:Name="AppPreferences" Content="การเปิดและปิดแอป" Margin="0,10,0,0" Height="42"/>
      <Button x:Name="WorkspaceHelp" Content="วิธีใช้ Workspace" Margin="0,10,0,0" Height="42"/>
     </StackPanel>
