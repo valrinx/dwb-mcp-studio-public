@@ -105,7 +105,11 @@ async function ensureCloudflared() {
     // fall through to download
   }
   const asset = cloudflaredAsset();
-  if (!asset) return failOrWarn('cloudflared', new Error(`unsupported platform ${process.platform}/${process.arch}`));
+  if (!asset)
+    return failOrWarn(
+      'cloudflared',
+      new Error(`unsupported platform ${process.platform}/${process.arch}`),
+    );
   try {
     console.error(`[setup] cloudflared: downloading ${asset}…`);
     const url = `https://github.com/cloudflare/cloudflared/releases/latest/download/${asset}`;
@@ -125,15 +129,24 @@ async function ensureBridgeConfig(flags) {
   const prev = await loadBridgeConfig(ROOT);
   const hadFile = Object.keys(prev).length > 0;
   const next = {
-    port: flags.port ?? (process.env.BRIDGE_PORT ? Number(process.env.BRIDGE_PORT) : undefined) ?? prev.port ?? 3000,
+    port:
+      flags.port ??
+      (process.env.BRIDGE_PORT ? Number(process.env.BRIDGE_PORT) : undefined) ??
+      prev.port ??
+      3000,
     path: flags.path ?? process.env.BRIDGE_PATH ?? prev.path ?? '/mcp',
-    token: flags['no-token'] ? null : (flags.token ?? process.env.BRIDGE_TOKEN ?? prev.token ?? randomBytes(24).toString('hex')),
+    token: flags['no-token']
+      ? null
+      : (flags.token ?? process.env.BRIDGE_TOKEN ?? prev.token ?? randomBytes(24).toString('hex')),
   };
-  const changed = !hadFile || next.port !== prev.port || next.path !== prev.path || next.token !== prev.token;
+  const changed =
+    !hadFile || next.port !== prev.port || next.path !== prev.path || next.token !== prev.token;
   if (changed) {
     await writeFile(join(ROOT, BRIDGE_CONFIG_FILE), JSON.stringify(next, null, 2) + '\n');
   }
-  console.error(`[setup] bridge config: ${BRIDGE_CONFIG_FILE} (${hadFile ? (changed ? 'updated' : 'unchanged') : 'created'})`);
+  console.error(
+    `[setup] bridge config: ${BRIDGE_CONFIG_FILE} (${hadFile ? (changed ? 'updated' : 'unchanged') : 'created'})`,
+  );
   return next;
 }
 
@@ -145,7 +158,9 @@ async function main() {
   console.error('');
   console.error('[setup] ready:');
   console.error(`[setup]   bridge : npm run bridge   ->  http://127.0.0.1:${cfg.port}${cfg.path}`);
-  console.error(`[setup]   token  : ${cfg.token === null ? '(none — bearer auth disabled)' : cfg.token}`);
+  console.error(
+    `[setup]   token  : ${cfg.token === null ? '(none — bearer auth disabled)' : cfg.token}`,
+  );
   console.error('[setup]   tunnel : npm run tunnel   ->  public https URL for the bridge');
 }
 

@@ -2,7 +2,12 @@
 
 [MCP Server Manager: คู่มือใช้งาน](docs/MCP-SERVER-MANAGER-TH.md) · [แผนการพัฒนา](docs/MCP-MANAGER-PLAN-TH.md)
 
-Windows Beta · 0.1.0-beta.24
+Windows Beta · 0.1.0-beta.25
+
+### ปรับปรุงใน beta.25
+
+- รวมปุ่ม Start/Stop MCP ไว้บน Dashboard หลัก และแก้การตรวจสถานะที่อาจทำให้ UI หน่วง
+- ซ่อม `bridge.config.json` ที่มี UTF-8 BOM อัตโนมัติ และแจ้งวิธีแก้ทันทีเมื่อ dependency หรือ build ยังไม่พร้อม
 
 ### ปรับปรุงใน beta.24
 

@@ -34,7 +34,9 @@ try {
 const TUNNEL_URL_FILE = join(ROOT, 'tunnel.url');
 
 console.error(`[tunnel] forwarding http://127.0.0.1:${port} — waiting for public URL…`);
-const child = spawn(bin, ['tunnel', '--url', `http://127.0.0.1:${port}`], { stdio: ['inherit', 'inherit', 'pipe'] });
+const child = spawn(bin, ['tunnel', '--url', `http://127.0.0.1:${port}`], {
+  stdio: ['inherit', 'inherit', 'pipe'],
+});
 let urlSaved = false;
 child.stderr.on('data', (chunk) => {
   process.stderr.write(chunk);

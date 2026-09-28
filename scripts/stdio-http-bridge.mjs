@@ -146,7 +146,11 @@ function handleChildLine(line) {
       // Child-initiated message. Notifications: ignore. Requests: answer
       // "Method not found" so the child never hangs waiting on the bridge.
       if (m.id !== undefined) {
-        writeChild({ jsonrpc: '2.0', id: m.id, error: { code: -32601, message: 'Method not found' } });
+        writeChild({
+          jsonrpc: '2.0',
+          id: m.id,
+          error: { code: -32601, message: 'Method not found' },
+        });
       }
     }
     // else: response for an unknown/expired id — drop it.
@@ -264,7 +268,9 @@ async function handleMcpPost(req, res) {
         pending.delete(cacheKey(m.id));
         if (!entry.settled) {
           entry.settled = true;
-          entry.resolve({ error: toJsonRpcError(m.id, -32000, 'Bridge: timed out waiting for stdio server') });
+          entry.resolve({
+            error: toJsonRpcError(m.id, -32000, 'Bridge: timed out waiting for stdio server'),
+          });
         }
       }
     }

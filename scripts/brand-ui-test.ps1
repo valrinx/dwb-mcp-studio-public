@@ -98,7 +98,7 @@ foreach($case in $cases){
     $stopMcp=$window.FindName('StopMcp')
     Assert-Brand ($startMcp -is [Windows.Controls.Button] -and $stopMcp -is [Windows.Controls.Button] -and $window.FindName('Refresh') -is [Windows.Controls.Button] -and $null -eq $window.FindName('McpToggle')) 'dashboard.xaml must use the original separate Refresh, Stop, and Start MCP buttons.'
     $dashboardCode=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'dashboard.ps1') -Raw
-    Assert-Brand ($dashboardCode.Contains("Find 'StartMcp'") -and $dashboardCode.Contains("Find 'StopMcp'") -and $dashboardCode.Contains('Start-DwbTunnel') -and $dashboardCode.Contains('Stop-DwbTunnel') -and -not $dashboardCode.Contains('McpToggle')) 'dashboard.ps1 must wire the original separate Start/Stop MCP actions.'
+    Assert-Brand ($dashboardCode.Contains("Find 'StartMcp'") -and $dashboardCode.Contains("Find 'StopMcp'") -and $dashboardCode.Contains('Start-MuseAiMcp') -and $dashboardCode.Contains('Stop-MuseAiMcp') -and $dashboardCode.Contains('mcp-control.ps1') -and -not $dashboardCode.Contains('Start-DwbTunnel') -and -not $dashboardCode.Contains('Stop-DwbTunnel') -and -not $dashboardCode.Contains('McpToggle')) 'dashboard.ps1 must route the separate Start/Stop MCP actions through the shared MCP controller.'
     Assert-Brand ($dashboardCode.Contains('Set-DashboardRoundedClip')) 'dashboard.ps1 must clip dashboard tables to their rounded panel corners.'
     $statCards=@($stats.Children | Where-Object {$_ -is [Windows.Controls.Border]})
     Assert-Brand ($statCards.Count -eq 4) 'dashboard.xaml status cards must remain separate elevated surfaces.'
