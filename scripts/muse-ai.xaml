@@ -80,8 +80,7 @@
       </StackPanel>
      </Grid>
      <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,15,0,0">
-      <Button x:Name="StartBridge" Content="เริ่ม Bridge" Padding="16,10"/>
-      <Button x:Name="StartTunnel" Content="เริ่ม Tunnel" Margin="10,0,0,0" Padding="16,10"/>
+      <Button x:Name="StartStopMcp" Content="▶ เริ่ม MCP" Padding="16,10"/>
       <Button x:Name="CopyForMuse" Content="คัดลอกข้อความสำหรับ Muse  →" Background="#A9F5FF" Foreground="#071014" BorderBrush="#A9F5FF" FontWeight="Bold" Margin="10,0,0,0" Padding="16,10"/>
      </StackPanel>
     </Grid>

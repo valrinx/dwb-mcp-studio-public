@@ -1,4 +1,4 @@
-node_modules/
+﻿node_modules/
 dist/
 logs/
 data/
@@ -25,3 +25,4 @@ external/
 /setup.lock
 /bridge.config.json
 /bin/
+/mcp.pids.json
