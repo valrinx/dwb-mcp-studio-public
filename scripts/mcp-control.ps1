@@ -50,14 +50,16 @@ function Reset-MuseAiToken([string]$Root=$script:RepoRoot){
   $json=Get-Content -LiteralPath $file -Raw -Encoding UTF8 | ConvertFrom-Json
   $newToken=New-MuseAiToken
   $json.token=$newToken
-  ($json | ConvertTo-Json -Depth 10) | Set-Content -LiteralPath $file -Encoding UTF8
+  # BOM-less UTF-8: node JSON.parse (bridge-config.mjs) throws on a BOM, which kills
+  # the bridge and tunnel processes on start. PS 5.1 Set-Content -Encoding UTF8 writes a BOM.
+  [IO.File]::WriteAllText($file, ($json | ConvertTo-Json -Depth 10), (New-Object Text.UTF8Encoding $false))
   return $newToken
 }
 
 function Get-McpPidFile([string]$Root=$script:RepoRoot){return Join-Path $Root 'mcp.pids.json'}
 
 function Save-McpPids([int]$BridgePid,[int]$TunnelPid,[string]$Root=$script:RepoRoot){
-  (@{bridge=$BridgePid;tunnel=$TunnelPid} | ConvertTo-Json) | Set-Content -LiteralPath (Get-McpPidFile $Root) -Encoding UTF8
+  [IO.File]::WriteAllText((Get-McpPidFile $Root), (@{bridge=$BridgePid;tunnel=$TunnelPid} | ConvertTo-Json), (New-Object Text.UTF8Encoding $false))
 }
 
 function Get-McpPids([string]$Root=$script:RepoRoot){
@@ -105,7 +107,17 @@ function Stop-MuseAiMcpProcesses([string]$Root=$script:RepoRoot){
   }
 }
 
+function Assert-McpPrerequisites([string]$Root=$script:RepoRoot){
+  # Fail fast with an actionable message instead of silently starting node
+  # processes that die instantly (their stderr is hidden by design).
+  $sdk=Join-Path $Root 'node_modules\@modelcontextprotocol\sdk\package.json'
+  if(-not (Test-Path -LiteralPath $sdk -PathType Leaf)){throw 'ยังไม่ได้ติดตั้ง dependencies — รัน npm install ในโฟลเดอร์โปรเจคก่อน'}
+  $dist=Join-Path $Root 'dist\index.js'
+  if(-not (Test-Path -LiteralPath $dist -PathType Leaf)){throw 'ยังไม่ได้ build — รัน npm run build ในโฟลเดอร์โปรเจคก่อน'}
+}
+
 function Start-MuseAiMcp([string]$Root=$script:RepoRoot){
+  Assert-McpPrerequisites $Root
   Stop-MuseAiMcpProcesses $Root
   $null=Reset-MuseAiToken $Root
   $bridgePid=Start-McpProcess 'scripts/stdio-http-bridge.mjs' $Root
