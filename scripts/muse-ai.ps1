@@ -17,32 +17,6 @@ function Get-MuseAiMaskedToken([string]$Token,[bool]$ConfigExists){
   return '••••'+$Token.Substring($Token.Length-4)
 }
 
-$script:McpWatchdog=$null
-$script:McpWatchdogTries=0
-function Start-MuseAiWatchdog{
-  Stop-MuseAiWatchdog
-  $script:McpWatchdogTries=0
-  $t=New-Object Windows.Threading.DispatcherTimer
-  $t.Interval=[TimeSpan]::FromSeconds(2)
-  $t.Add_Tick({
-    $script:McpWatchdogTries++
-    Update-MuseAiStatus
-    $cfg=Get-MuseAiBridgeConfig
-    $ready=(Test-MuseAiBridge $cfg.port $cfg.token) -and [bool](Get-MuseAiTunnelUrl)
-    if($ready -or $script:McpWatchdogTries -ge 30 -or -not (Test-McpRunning)){
-      Stop-MuseAiWatchdog
-      if($ready){(Find 'ActionStatus').Text='MCP พร้อมใช้งาน — กดคัดลอกข้อความสำหรับ Muse ได้เลย'}
-      elseif(Test-McpRunning){(Find 'ActionStatus').Text='เริ่มบางส่วนไม่สำเร็จ — กดรีเฟรชเพื่อดูสถานะ'}
-      Update-MuseAiStatus
-    }
-  })
-  $t.Start()
-  $script:McpWatchdog=$t
-}
-function Stop-MuseAiWatchdog{
-  if($script:McpWatchdog){$script:McpWatchdog.Stop();$script:McpWatchdog=$null}
-}
-
 function Build-MuseAiMessage([string]$Endpoint,[string]$Token){
   $lines=@(
     'เชื่อมต่อกับ N3zuui Studio ของฉันผ่าน MCP remote bridge:',
@@ -72,30 +46,14 @@ function Update-MuseAiStatus{
     (Find 'TunnelUrl').Text=$tunnel
     (Find 'TunnelUrl').Foreground='#A9F5FF'
   }else{
-    (Find 'TunnelUrl').Text='ยังไม่ได้เปิด tunnel — กด "▶ เริ่ม MCP"'
+    (Find 'TunnelUrl').Text='ยังไม่ได้เปิด tunnel — กด "Start MCP" บน dashboard หลัก'
     (Find 'TunnelUrl').Foreground='#8D98A3'
   }
   (Find 'TokenState').Text=Get-MuseAiMaskedToken $cfg.token $cfg.exists
-  (Find 'StartStopMcp').Content=if(Test-McpRunning){'■ หยุด MCP'}else{'▶ เริ่ม MCP'}
-  if(-not $running){(Find 'ActionStatus').Text='Bridge ยังไม่ทำงาน — กด "▶ เริ่ม MCP"'}
+  if(-not $running){(Find 'ActionStatus').Text='Bridge ยังไม่ทำงาน — กด "Start MCP" บน dashboard หลัก'}
 }
 
 (Find 'Refresh').Add_Click({Update-MuseAiStatus;(Find 'ActionStatus').Text='รีเฟรชสถานะแล้ว'})
-(Find 'StartStopMcp').Add_Click({
-  try{
-    if(Test-McpRunning){
-      Stop-MuseAiMcp
-      Stop-MuseAiWatchdog
-      Update-MuseAiStatus
-      (Find 'ActionStatus').Text='หยุด MCP แล้ว — token ถูกเปลี่ยนใหม่'
-    }else{
-      Start-MuseAiMcp
-      Update-MuseAiStatus
-      (Find 'ActionStatus').Text='กำลังเริ่ม MCP เบื้องหลัง…'
-      Start-MuseAiWatchdog
-    }
-  }catch{(Find 'ActionStatus').Text=$_.Exception.Message}
-})
 (Find 'CopyForMuse').Add_Click({
   $cfg=Get-MuseAiBridgeConfig
   $tunnel=Get-MuseAiTunnelUrl
@@ -106,10 +64,10 @@ function Update-MuseAiStatus{
 })
 
 if($UiTest){
-  foreach($name in @('BrandTitle','Refresh','BridgeStatusCard','BridgeDot','BridgeStateLabel','BridgeEndpoint','TunnelUrl','TokenState','StartStopMcp','CopyForMuse','FlowCard','SetupCard','SecurityCard','ActionStatus','MainScroll')){
+  foreach($name in @('BrandTitle','Refresh','BridgeStatusCard','BridgeDot','BridgeStateLabel','BridgeEndpoint','TunnelUrl','TokenState','CopyForMuse','FlowCard','SetupCard','SecurityCard','ActionStatus','MainScroll')){
     if(-not (Find $name)){throw "Muse AI is missing control: $name"}
   }
-  if((Find 'StartStopMcp') -isnot [Windows.Controls.Button] -or (Find 'CopyForMuse') -isnot [Windows.Controls.Button] -or (Find 'Refresh') -isnot [Windows.Controls.Button]){throw 'Muse AI action buttons are missing.'}
+  if((Find 'CopyForMuse') -isnot [Windows.Controls.Button] -or (Find 'Refresh') -isnot [Windows.Controls.Button]){throw 'Muse AI action buttons are missing.'}
   if((Find 'StartBridge') -or (Find 'StartTunnel')){throw 'Muse AI must use a single Start/Stop MCP button, not separate bridge/tunnel buttons.'}
   if((Find 'BridgeDot') -isnot [Windows.Shapes.Ellipse]){throw 'Muse AI bridge status dot is missing.'}
   $tok1=New-MuseAiToken
@@ -155,13 +113,13 @@ if($UiTest){
     if($cfg3.token -eq $rotated){throw 'Stop must rotate the token too'}
     Update-MuseAiStatus
     if((Find 'BridgeEndpoint').Text -notmatch '127\.0\.0\.1'){throw 'Bridge endpoint was not rendered'}
-    if((Find 'StartStopMcp').Content -notmatch 'เริ่ม MCP'){throw 'Toggle button should offer Start MCP when stopped'}
+    if(Find 'StartStopMcp'){throw 'Muse AI must not have its own Start/Stop MCP button; use the main dashboard button.'}
     $realCfg=Get-MuseAiBridgeConfig
     if($realCfg.token -and (Find 'TokenState').Text.Contains($realCfg.token)){throw 'Full token leaked into UI text'}
   }finally{
     try{Stop-MuseAiMcp -Root $tmp}catch{}
     if(Test-Path -LiteralPath $tmp){Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue}
   }
-  if($UiTestReport){[IO.File]::WriteAllText($UiTestReport,'PASS: Muse AI UI behavior: controls=15; one-button-mcp=start/stop; token=rotated-on-start-and-stop; procs=hidden+pid-tracked; bridge-config=read; health-probe=graceful; token=masked; tunnel-url=read; copy-message=complete; status-render=no-throw')}
+  if($UiTestReport){[IO.File]::WriteAllText($UiTestReport,'PASS: Muse AI UI behavior: controls=14; mcp-start-stop=main-dashboard-button; token=rotated-on-start-and-stop; procs=hidden+pid-tracked; bridge-config=read; health-probe=graceful; token=masked; tunnel-url=read; copy-message=complete; status-render=no-throw')}
   $window.Close()
 }else{Update-MuseAiStatus;$null=$window.ShowDialog()}
