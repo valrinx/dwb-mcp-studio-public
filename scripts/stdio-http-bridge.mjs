@@ -11,6 +11,8 @@
  *   node scripts/stdio-http-bridge.mjs [--port 3000] [--path /mcp]
  *       [--token SECRET] [--timeout-ms 120000] [-- command args...]
  *
+ * Defaults come from bridge.config.json when present (created by
+ * `npm run setup`); command-line flags override the file.
  * Defaults to spawning: <node> scripts/start.mjs
  *
  * Protocol notes:
@@ -30,47 +32,49 @@ import { createServer } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadBridgeConfig, studioCommand } from './bridge-config.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
 function parseArgs(argv) {
-  const opts = {
-    port: 3000,
-    path: '/mcp',
-    token: null,
-    timeoutMs: 120000,
-    command: null, // [cmd, ...args]; default below
-  };
+  // Only flags given on the command line are set; the rest fall back to
+  // bridge.config.json, then to the defaults below.
+  const cli = {};
   let i = 0;
   while (i < argv.length) {
     const a = argv[i];
     if (a === '--') {
-      opts.command = argv.slice(i + 1);
+      cli.command = argv.slice(i + 1);
       break;
     }
     const next = argv[i + 1];
-    if (a === '--port') opts.port = Number(next);
-    else if (a === '--path') opts.path = next;
-    else if (a === '--token') opts.token = next;
-    else if (a === '--timeout-ms') opts.timeoutMs = Number(next);
+    if (a === '--port') cli.port = Number(next);
+    else if (a === '--path') cli.path = next;
+    else if (a === '--token') cli.token = next;
+    else if (a === '--timeout-ms') cli.timeoutMs = Number(next);
     else {
       console.error(`Unknown argument: ${a}`);
       process.exit(2);
     }
     i += 2;
   }
-  if (!opts.command || opts.command.length === 0) {
-    opts.command = [process.execPath, join(ROOT, 'scripts', 'start.mjs')];
-  }
-  if (!Number.isFinite(opts.port) || opts.port <= 0) {
-    console.error('Invalid --port');
-    process.exit(2);
-  }
-  return opts;
+  return cli;
 }
 
-const opts = parseArgs(process.argv.slice(2));
+const cli = parseArgs(process.argv.slice(2));
+const fileCfg = await loadBridgeConfig(ROOT);
+const opts = {
+  port: cli.port ?? fileCfg.port ?? 3000,
+  path: cli.path ?? fileCfg.path ?? '/mcp',
+  token: cli.token ?? fileCfg.token ?? null,
+  timeoutMs: cli.timeoutMs ?? fileCfg.timeoutMs ?? 120000,
+  command: cli.command && cli.command.length > 0 ? cli.command : studioCommand(ROOT),
+};
+if (!Number.isFinite(opts.port) || opts.port <= 0) {
+  console.error('Invalid --port');
+  process.exit(2);
+}
 
 // ---------------------------------------------------------------------------
 // Child process (the stdio MCP server)

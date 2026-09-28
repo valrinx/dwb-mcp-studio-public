@@ -22,3 +22,5 @@ external/
 /base-policy.json
 /tunnel/
 /setup.lock
+/bridge.config.json
+/bin/

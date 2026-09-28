@@ -79,7 +79,11 @@
     "test:shell": "node scripts/test-powershell.mjs shell-test",
     "test:runtime-upgrade": "node scripts/test-powershell.mjs runtime-upgrade-test",
     "test:preferences": "node scripts/test-powershell.mjs preferences-test",
-    "test:connect": "node --test scripts/client-config-test.mjs scripts/connect-test.mjs"
+    "test:connect": "node --test scripts/client-config-test.mjs scripts/connect-test.mjs",
+    "setup": "node scripts/setup.mjs",
+    "postinstall": "node scripts/setup.mjs",
+    "bridge": "node scripts/stdio-http-bridge.mjs",
+    "tunnel": "node scripts/tunnel.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
