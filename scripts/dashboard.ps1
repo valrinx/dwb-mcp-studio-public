@@ -3,6 +3,7 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'dpi-common.ps1')
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase
 . (Join-Path $PSScriptRoot 'tunnel-common.ps1')
+. (Join-Path $PSScriptRoot 'mcp-control.ps1')
 $reader=[Xml.XmlReader]::Create([IO.StringReader]::new([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'dashboard.xaml'))))
 try{$window=[Windows.Markup.XamlReader]::Load($reader)}finally{$reader.Dispose()}
 if($global:DwbShell){Register-DwbWindow $window}
@@ -31,6 +32,7 @@ try{(Find 'Version').Text=(Get-Content -LiteralPath (Join-Path $PSScriptRoot '..
 $script:Probe=$null; $script:Output=$null; $script:Errors=$null
 $script:LastProbe=[DateTime]::MinValue
 $script:Node=Get-DwbNode
+$script:RepoRoot=Split-Path -Parent $PSScriptRoot
 function Open-DwbScreen([string]$Name,[string]$Extra=''){
   if($global:DwbShell -and $Name -notin @('mcp-manager.ps1','muse-ai.ps1')){Set-DwbPage $(if($Name -eq 'tunnel-setup.ps1'){'connection'}else{'setup-config'});return}
   $args='-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File '+(ConvertTo-DwbArgument (Join-Path $PSScriptRoot $Name))+' '+$Extra
@@ -87,14 +89,27 @@ function Apply-Snapshot($Data){
 }
 function Update-TunnelCard{
   try{
-    $state=Get-DwbTunnelStatus
-    (Find 'TunnelStatus').Text=switch($state.state){'ready'{'พร้อม'} 'starting'{'กำลังเชื่อมต่อ'} default{'หยุดอยู่'}}
-    (Find 'TunnelStatus').Foreground=if($state.ready){'#81D7B5'}else{'#EDB77D'}
-    (Find 'TunnelDetail').Text=if($state.pid){'PID '+$state.pid+' · สถานะจาก tunnel-client'}else{'กด Start เพื่อเชื่อมต่อ'}
-    (Find 'StartMcp').IsEnabled=$state.state -eq 'stopped'
-    (Find 'StopMcp').IsEnabled=$state.state -ne 'stopped'
-    (Find 'MachineSetup').IsEnabled=$state.state -eq 'stopped'
-  }catch{(Find 'TunnelStatus').Text='อ่านไม่ได้';(Find 'TunnelDetail').Text='ตรวจหน้า ตั้งค่า Tunnel';(Find 'StartMcp').IsEnabled=$false;(Find 'StopMcp').IsEnabled=$false}
+    $mcpOn=Test-McpRunning
+    $cfg=Get-MuseAiBridgeConfig
+    $bridgeUp=Test-MuseAiBridge $cfg.port $cfg.token
+    $url=Get-MuseAiTunnelUrl
+    if($mcpOn -and $bridgeUp -and $url){
+      (Find 'TunnelStatus').Text='พร้อม'
+      (Find 'TunnelStatus').Foreground='#81D7B5'
+      (Find 'TunnelDetail').Text=$url
+    }elseif($mcpOn){
+      (Find 'TunnelStatus').Text='กำลังเชื่อมต่อ'
+      (Find 'TunnelStatus').Foreground='#EDB77D'
+      (Find 'TunnelDetail').Text=if($bridgeUp){'Bridge ทำงาน · รอ tunnel URL'}else{'กำลังเริ่ม bridge…'}
+    }else{
+      (Find 'TunnelStatus').Text='หยุดอยู่'
+      (Find 'TunnelStatus').Foreground='#EDB77D'
+      (Find 'TunnelDetail').Text='กด Start MCP เพื่อเชื่อมต่อ'
+    }
+    (Find 'StartMcp').IsEnabled=-not $mcpOn
+    (Find 'StopMcp').IsEnabled=$mcpOn
+    (Find 'MachineSetup').IsEnabled=-not $mcpOn
+  }catch{(Find 'TunnelStatus').Text='อ่านไม่ได้';(Find 'TunnelDetail').Text='ตรวจ bridge.config.json';(Find 'StartMcp').IsEnabled=$false;(Find 'StopMcp').IsEnabled=$false}
 }
 function Begin-Probe{
   if($script:Probe){return}
@@ -135,13 +150,11 @@ function Finish-Probe{
 (Find 'Refresh').Add_Click({Begin-Probe})
 (Find 'StartMcp').Add_Click({
   try{
-    $settings=Read-DwbTunnelJson 'settings.json'
-    if(-not $settings -or -not(Test-Path -LiteralPath (Join-Path (Get-DwbTunnelDirectory) 'key.dpapi'))){Open-DwbScreen 'tunnel-setup.ps1';return}
-    $null=Start-DwbTunnel $settings.tunnelId $null ([bool]$settings.rememberKey) (Find-DwbTunnelClient)
-    (Find 'ActionStatus').Text='เริ่ม tunnel แล้ว · กำลังรอสถานะพร้อม';Begin-Probe
+    Start-MuseAiMcp
+    (Find 'ActionStatus').Text='เริ่ม MCP แล้ว · bridge + tunnel ทำงานเบื้องหลังโดยไม่เปิดหน้าต่าง';Begin-Probe
   }catch{(Find 'ActionStatus').Text=$_.Exception.Message}
 })
-(Find 'StopMcp').Add_Click({try{Stop-DwbTunnel;(Find 'ActionStatus').Text='หยุด tunnel แล้ว · Broker และงานที่เริ่มไว้ในเครื่องอาจยังทำงานต่อ';Begin-Probe}catch{(Find 'ActionStatus').Text=$_.Exception.Message}})
+(Find 'StopMcp').Add_Click({try{Stop-MuseAiMcp;(Find 'ActionStatus').Text='หยุด MCP แล้ว · token ถูกเปลี่ยนใหม่';Begin-Probe}catch{(Find 'ActionStatus').Text=$_.Exception.Message}})
 (Find 'Sessions').Add_SelectionChanged({$selected=(Find 'Sessions').SelectedItem;if($selected){(Find 'Detail').Text=$selected.FullDetail}})
 (Find 'Agents').Add_SelectionChanged({$selected=(Find 'Agents').SelectedItem;if($selected){(Find 'Detail').Text=$selected.FullDetail}})
 (Find 'Tasks').Add_SelectionChanged({$selected=(Find 'Tasks').SelectedItem;if($selected){(Find 'Detail').Text=$selected.FullDetail}})

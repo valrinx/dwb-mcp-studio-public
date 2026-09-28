@@ -121,7 +121,7 @@
     <Border x:Name="EventsEdge" BorderBrush="#4A6579" BorderThickness="1" CornerRadius="11" Background="Transparent" IsHitTestVisible="False"/>
     </Grid>
    </Border>
-   <StackPanel Grid.Row="8" Margin="0,12,0,0"><TextBox x:Name="Detail" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Background="Transparent" BorderThickness="0" Text="เลือก session เพื่อดูโฟลเดอร์เต็ม หรือเลือกเหตุการณ์เพื่อดูข้อผิดพลาด" FontSize="12" Foreground="#9AB9CA" MaxHeight="60"/><TextBlock x:Name="ActionStatus" Text="Dashboard อ่านสถานะโดยไม่เปิด worker เพิ่ม · Stop หยุด tunnel ส่วนงานใน broker อาจยังทำงานต่อ" FontSize="11" Foreground="#6F96AC" Margin="0,8,0,0"/></StackPanel>
+   <StackPanel Grid.Row="8" Margin="0,12,0,0"><TextBox x:Name="Detail" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Background="Transparent" BorderThickness="0" Text="เลือก session เพื่อดูโฟลเดอร์เต็ม หรือเลือกเหตุการณ์เพื่อดูข้อผิดพลาด" FontSize="12" Foreground="#9AB9CA" MaxHeight="60"/><TextBlock x:Name="ActionStatus" Text="ปุ่ม Start/Stop MCP ควบคุม bridge + tunnel ของ Muse AI · ทำงานเบื้องหลังโดยไม่เปิดหน้าต่าง" FontSize="11" Foreground="#6F96AC" Margin="0,8,0,0"/></StackPanel>
   </Grid>
   </ScrollViewer>
  </Grid>
