@@ -102,8 +102,10 @@ if($UiTest){
     'setTimeout(()=>{},15000)' | Set-Content (Join-Path $tmp 'scripts\dummy.mjs') -Encoding UTF8
     if(-not $script:Node){throw 'Node.js is required for the background-process test'}
     $dpid=Start-McpProcess 'scripts/dummy.mjs' $tmp
+    $tpid=Start-McpProcess 'scripts/dummy.mjs' $tmp
     if(-not (Test-McpProcessAlive $dpid)){throw 'Hidden background process did not start'}
-    Save-McpPids $dpid 0 $tmp
+    if(-not (Test-McpProcessAlive $tpid)){throw 'Second hidden background process did not start'}
+    Save-McpPids $dpid $tpid $tmp
     if(-not (Test-McpRunning $tmp)){throw 'MCP should report running after Start-McpProcess + Save-McpPids'}
     Stop-MuseAiMcp -Root $tmp
     Start-Sleep -Milliseconds 800

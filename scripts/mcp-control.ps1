@@ -81,7 +81,7 @@ function Test-McpProcessAlive([int]$Id){
 function Test-McpRunning([string]$Root=$script:RepoRoot){
   $p=Get-McpPids $Root
   if(-not $p){return $false}
-  return (Test-McpProcessAlive ([int]$p.bridge)) -or (Test-McpProcessAlive ([int]$p.tunnel))
+  return (Test-McpProcessAlive ([int]$p.bridge)) -and (Test-McpProcessAlive ([int]$p.tunnel))
 }
 
 function Start-McpProcess([string]$ScriptRelPath,[string]$Root=$script:RepoRoot){
@@ -114,6 +114,8 @@ function Assert-McpPrerequisites([string]$Root=$script:RepoRoot){
   if(-not (Test-Path -LiteralPath $sdk -PathType Leaf)){throw 'ยังไม่ได้ติดตั้ง dependencies — รัน npm install ในโฟลเดอร์โปรเจคก่อน'}
   $dist=Join-Path $Root 'dist\index.js'
   if(-not (Test-Path -LiteralPath $dist -PathType Leaf)){throw 'ยังไม่ได้ build — รัน npm run build ในโฟลเดอร์โปรเจคก่อน'}
+  $tunnel=Join-Path $Root 'bin\cloudflared.exe'
+  if(-not (Test-Path -LiteralPath $tunnel -PathType Leaf)){throw 'ยังไม่มี cloudflared สำหรับเปิด tunnel — เปิด PowerShell ในโฟลเดอร์โปรแกรมแล้วรัน npm run setup จากนั้นกด Start MCP อีกครั้ง'}
 }
 
 function Start-MuseAiMcp([string]$Root=$script:RepoRoot){

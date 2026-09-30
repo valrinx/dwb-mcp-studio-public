@@ -25,7 +25,19 @@ try{
   $distDir=Join-Path $tmp 'dist'
   New-Item -ItemType Directory -Path $distDir -Force | Out-Null
   '// built' | Set-Content (Join-Path $distDir 'index.js') -Encoding UTF8
+  try{Assert-McpPrerequisites $tmp; throw 'should-have-thrown'}catch{
+    if($_.Exception.Message -eq 'should-have-thrown'){throw 'RED: Assert-McpPrerequisites must reject a missing cloudflared tunnel executable'}
+    if($_.Exception.Message -notmatch 'cloudflared' -or $_.Exception.Message -notmatch 'npm run setup'){throw "RED: missing-tunnel error must identify cloudflared and explain setup; got: $($_.Exception.Message)"}
+  }
+  $binDir=Join-Path $tmp 'bin'
+  New-Item -ItemType Directory -Path $binDir -Force | Out-Null
+  'placeholder' | Set-Content (Join-Path $binDir 'cloudflared.exe') -Encoding ASCII
   Assert-McpPrerequisites $tmp  # must not throw when everything is present
+
+  Save-McpPids $PID 0 $tmp
+  if(Test-McpRunning $tmp){throw 'RED: MCP must not report running when only the bridge process is alive'}
+  Save-McpPids $PID $PID $tmp
+  if(-not (Test-McpRunning $tmp)){throw 'MCP should report running when both bridge and tunnel processes are alive'}
 }finally{
   if(Test-Path -LiteralPath $tmp){Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue}
 }
