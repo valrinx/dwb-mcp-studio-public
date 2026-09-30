@@ -21,7 +21,8 @@ $mutex=New-Object Threading.Mutex($false,('Local\DWB-Studio-UI-'+$identity))
 $owned=$false
 try{$owned=$mutex.WaitOne(0)}catch [Threading.AbandonedMutexException]{$owned=$true}
 if(-not $owned){if(-not $Startup){$null=$wake.Set()};$wake.Dispose();$mutex.Dispose();return}
-$global:DwbShell=@{Window=$null;AllowClose=$false;Next='setup';Exiting=$false;Frame=$null;Preferences=(Get-DwbPreferences);StartupPending=[bool]$Startup;Quitting=$false;AutoConnectDeadline=$null;AutoConnectProbe=[DateTime]::MinValue}
+$global:DwbShell=@{Window=$null;AllowClose=$false;Next='setup';Exiting=$false;Frame=$null;Preferences=(Get-DwbPreferences);StartupPending=[bool]$Startup;Quitting=$false;AutoConnectDeadline=$null;AutoConnectProbe=[DateTime]::MinValue;TunnelRecovery=(New-DwbTunnelRecoveryState);NextTunnelRecoveryCheck=[DateTime]::MinValue}
+if(Get-DwbTunnelProcess){Enable-DwbTunnelRecovery $global:DwbShell.TunnelRecovery}
 $tray=New-Object Windows.Forms.NotifyIcon
 $tray.Icon=New-Object Drawing.Icon((Join-Path $PSScriptRoot '..\assets\n3zuui.ico'),32,32)
 $tray.Text='N3zuui Studio';$tray.Visible=$true
@@ -41,6 +42,7 @@ function global:Exit-DwbApp {
   if($global:DwbShell.Quitting){return $false}
   $global:DwbShell.Quitting=$true
   try{
+    Disable-DwbTunnelRecovery $global:DwbShell.TunnelRecovery
     Stop-DwbTunnel
     if(Test-Path -LiteralPath (Join-Path $PSScriptRoot '..\dist\broker-protocol.js')){
       . (Join-Path $PSScriptRoot 'runtime-upgrade.ps1')
@@ -78,8 +80,9 @@ function global:Show-DwbWindow($Window){
         try{
           $settings=Read-DwbTunnelJson 'settings.json'
           if(-not $settings){throw 'กรุณาตั้งค่า Tunnel ID และบันทึก key ก่อน'}
-          if(-not(Get-DwbTunnelProcess)){$null=Start-DwbTunnel $settings.tunnelId $null $true (Find-DwbTunnelClient)}
-          $global:DwbShell.AutoConnectDeadline=[DateTime]::UtcNow.AddSeconds(45)
+          Enable-DwbTunnelRecovery $global:DwbShell.TunnelRecovery
+          if(-not(Get-DwbTunnelProcess)){$null=Invoke-DwbTunnelRecovery $global:DwbShell.TunnelRecovery ([DateTime]::UtcNow)}
+          $global:DwbShell.AutoConnectDeadline=[DateTime]::UtcNow.AddSeconds(150)
         }catch{Restore-DwbWindow;[Windows.MessageBox]::Show($_.Exception.Message,'N3zuui · Start MCP อัตโนมัติ')|Out-Null}
       }
     }
@@ -93,21 +96,27 @@ $hideItem=$menu.Items.Add('ซ่อนไป tray');$hideItem.Add_Click({Hide-D
 $exitItem=$menu.Items.Add('ปิดแอปและหยุด MCP');$exitItem.Add_Click({$null=Exit-DwbApp})
 $null=$menu.Items.Add((New-Object Windows.Forms.ToolStripSeparator))
 $quit=$menu.Items.Add('ออกจากหน้าควบคุม (MCP ยังทำงาน)')
-$quit.Add_Click({$global:DwbShell.Exiting=$true;Set-DwbPage ''})
+$quit.Add_Click({Disable-DwbTunnelRecovery $global:DwbShell.TunnelRecovery;$global:DwbShell.Exiting=$true;Set-DwbPage ''})
 $tray.ContextMenuStrip=$menu
 $tray.Add_MouseClick({param($sender,$eventArgs) if($eventArgs.Button -eq [Windows.Forms.MouseButtons]::Left){Restore-DwbWindow}})
 $timer=New-Object Windows.Threading.DispatcherTimer
 $timer.Interval=[TimeSpan]::FromMilliseconds(250)
 $timer.Add_Tick({
   if($wake.WaitOne(0)){Restore-DwbWindow}
+  if($global:DwbShell.TunnelRecovery.enabled -and [DateTime]::UtcNow -ge $global:DwbShell.NextTunnelRecoveryCheck){
+    $global:DwbShell.NextTunnelRecoveryCheck=[DateTime]::UtcNow.AddSeconds(5)
+    $null=Invoke-DwbTunnelRecovery $global:DwbShell.TunnelRecovery ([DateTime]::UtcNow)
+  }
   if($global:DwbShell.AutoConnectDeadline -and [DateTime]::UtcNow -ge $global:DwbShell.AutoConnectProbe){
     $global:DwbShell.AutoConnectProbe=[DateTime]::UtcNow.AddSeconds(3)
     try{$state=Get-DwbTunnelStatus}catch{$state=[pscustomobject]@{state='stopped';ready=$false}}
     if($state.ready){$global:DwbShell.AutoConnectDeadline=$null}
-    elseif($state.state -eq 'stopped' -or [DateTime]::UtcNow -ge $global:DwbShell.AutoConnectDeadline){
+    elseif([DateTime]::UtcNow -ge $global:DwbShell.AutoConnectDeadline){
       $global:DwbShell.AutoConnectDeadline=$null
       Restore-DwbWindow
-      [Windows.MessageBox]::Show('MCP ยังเชื่อมต่อไม่สำเร็จ กรุณาดูสถานะใน Dashboard หรือตรวจ Tunnel / API key','N3zuui · Start MCP อัตโนมัติ')|Out-Null
+      $tray.BalloonTipTitle='N3zuui · กำลังเชื่อมต่อ MCP'
+      $tray.BalloonTipText='OpenAI Tunnel ยังไม่พร้อม ระบบจะลองเชื่อมต่อใหม่อัตโนมัติ ตรวจ Tunnel ID, API key และอินเทอร์เน็ตได้จากหน้าการเชื่อมต่อ'
+      $tray.ShowBalloonTip(5000)
     }
   }
 })

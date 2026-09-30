@@ -39,6 +39,79 @@ function Get-DwbTunnelStatus {
   } catch {}
   return [pscustomobject]@{ state='starting'; ready=$false; pid=$process.Id }
 }
+function New-DwbTunnelRecoveryState {
+  return [pscustomobject]@{ enabled=$false; secureKey=$null; nextAttemptUtc=[DateTime]::MinValue; failureCount=0; lastStartUtc=$null; unreadySinceUtc=$null; lastError=$null }
+}
+function Enable-DwbTunnelRecovery($State,[Security.SecureString]$ApiKey=$null) {
+  if ($State.secureKey -and $State.secureKey -ne $ApiKey) { $State.secureKey.Dispose() }
+  $State.enabled=$true
+  $State.secureKey=$ApiKey
+  $State.nextAttemptUtc=[DateTime]::MinValue
+  $State.failureCount=0
+  $State.lastStartUtc=$null
+  $State.unreadySinceUtc=$null
+  $State.lastError=$null
+}
+function Disable-DwbTunnelRecovery($State) {
+  $State.enabled=$false
+  if ($State.secureKey) { $State.secureKey.Dispose(); $State.secureKey=$null }
+  $State.nextAttemptUtc=[DateTime]::MinValue
+  $State.unreadySinceUtc=$null
+  $State.lastStartUtc=$null
+  $State.lastError=$null
+}
+function Invoke-DwbTunnelRecovery($State,[DateTime]$Now=[DateTime]::UtcNow) {
+  if (-not $State.enabled) { return 'disabled' }
+  if ($Now -lt $State.nextAttemptUtc) { return 'backoff' }
+
+  $process=Get-DwbTunnelProcess
+  if ($process) {
+    $status=Get-DwbTunnelStatus
+    if ($status.ready) {
+      if ($State.lastStartUtc -and ($Now-$State.lastStartUtc).TotalSeconds -ge 120) { $State.failureCount=0; $State.lastError=$null }
+      $State.unreadySinceUtc=$null
+      return 'healthy'
+    }
+    if (-not $State.unreadySinceUtc) { $State.unreadySinceUtc=$Now; return 'waiting' }
+    if (($Now-$State.unreadySinceUtc).TotalSeconds -lt 120) { return 'waiting' }
+    Stop-DwbTunnel
+    $State.failureCount=[int]$State.failureCount+1
+    $State.lastStartUtc=$null
+    $State.unreadySinceUtc=$null
+    $delay=[Math]::Min(60,5*[Math]::Pow(2,[Math]::Min(6,[Math]::Max(0,[int]$State.failureCount-1))))
+    $State.nextAttemptUtc=$Now.AddSeconds($delay)
+    return 'backoff'
+  } elseif ($State.lastStartUtc) {
+    $startedRecently=($Now-$State.lastStartUtc).TotalSeconds -lt 120
+    $State.lastStartUtc=$null
+    if($startedRecently){
+      $State.failureCount=[int]$State.failureCount+1
+      $delay=[Math]::Min(60,5*[Math]::Pow(2,[Math]::Min(6,[Math]::Max(0,[int]$State.failureCount-1))))
+      $State.nextAttemptUtc=$Now.AddSeconds($delay)
+      $State.unreadySinceUtc=$null
+      return 'backoff'
+    }
+  }
+
+  try {
+    $settings=Read-DwbTunnelJson 'settings.json'
+    if (-not $settings) { throw 'Tunnel settings are missing.' }
+    $null=Start-DwbTunnel $settings.tunnelId $State.secureKey ([bool]$settings.rememberKey) (Find-DwbTunnelClient)
+    $State.lastStartUtc=$Now
+    $State.unreadySinceUtc=$Now
+    $State.nextAttemptUtc=[DateTime]::MinValue
+    $State.lastError=$null
+    return 'restarted'
+  } catch {
+    $State.failureCount=[int]$State.failureCount+1
+    $delay=[Math]::Min(60,5*[Math]::Pow(2,[Math]::Min(6,[Math]::Max(0,[int]$State.failureCount-1))))
+    $State.nextAttemptUtc=$Now.AddSeconds($delay)
+    $State.lastStartUtc=$null
+    $State.unreadySinceUtc=$null
+    $State.lastError=$_.Exception.Message
+    return 'backoff'
+  }
+}
 function Stop-DwbTunnel {
   $process = Get-DwbTunnelProcess
   if ($process) {
@@ -93,13 +166,13 @@ function Start-DwbTunnel([string]$TunnelId, [Security.SecureString]$ApiKey, [boo
       health=@{ listen_addr='127.0.0.1:0'; url_file=$healthFile }
       admin_ui=@{ open_browser=$false }
       log=@{ level='info'; format='json'; file=$logFile }
-      mcp=@{ commands=@(@{ channel='main'; command=$mcpCommand }) }
+      mcp=@{ connection_max_ttl='168h0m0s'; commands=@(@{ channel='main'; command=$mcpCommand }) }
     }
     Write-DwbTunnelJson 'profile.json' $profile
     Write-DwbTunnelJson 'settings.json' @{ tunnelId=$TunnelId; executable=$Executable; rememberKey=$RememberKey }
     $info = New-Object Diagnostics.ProcessStartInfo
     $info.FileName = $Executable
-    $info.Arguments = 'run --config ' + (ConvertTo-DwbArgument (Join-Path $root 'profile.json'))
+    $info.Arguments = 'run --config ' + (ConvertTo-DwbArgument (Join-Path $root 'profile.json')) + ' --mcp.connection-max-ttl 168h0m0s'
     $info.WorkingDirectory = $appRoot
     $info.UseShellExecute = $false
     $info.CreateNoWindow = $true
@@ -108,6 +181,7 @@ function Start-DwbTunnel([string]$TunnelId, [Security.SecureString]$ApiKey, [boo
       if ($name -match '^(CONTROL_PLANE_|TUNNEL_CLIENT_|MCP_|HARPOON_|HEALTH_|ADMIN_UI_|CLOUDFLARED_|LOG_|DWB_)' -or $name -in @('OPENAI_API_KEY','OPEN_WEB_UI','ALLOW_REMOTE_UI')) { $info.EnvironmentVariables.Remove($name) }
     }
     $info.EnvironmentVariables['DWB_TUNNEL_RUNTIME_KEY'] = $plainKey
+    $info.EnvironmentVariables['MCP_CONNECTION_MAX_TTL'] = '168h0m0s'
     $info.EnvironmentVariables['DWB_DATA_DIR'] = Get-DwbDataDirectory
     $info.EnvironmentVariables['DWB_CONFIG_FILE'] = Get-DwbConfigPath
     $process = [Diagnostics.Process]::Start($info)

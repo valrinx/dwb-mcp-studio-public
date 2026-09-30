@@ -2,7 +2,12 @@
 
 [MCP Server Manager: คู่มือใช้งาน](docs/MCP-SERVER-MANAGER-TH.md) · [แผนการพัฒนา](docs/MCP-MANAGER-PLAN-TH.md)
 
-Windows Beta · 0.1.0-beta.25
+Windows Beta · 0.1.0-beta.26
+
+### ปรับปรุงใน beta.26
+
+- กู้ OpenAI Tunnel อัตโนมัติเมื่อ process หลุดหรือไม่พร้อม และหน่วงการลองใหม่แบบ backoff
+- ตั้งอายุการเชื่อมต่อ MCP ให้ตรงกับ tunnel ระยะยาว ลดการตัดการส่งข้อมูลเมื่อใช้งานต่อเนื่อง
 
 ### ปรับปรุงใน beta.25
 

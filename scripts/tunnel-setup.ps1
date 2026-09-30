@@ -16,6 +16,7 @@ $stopButton = Find 'StopMcp'
 $script:ClientExe = ''
 $script:WasRunning = $false
 $script:StartedAt = $null
+$script:RecoveryState = if($global:DwbShell -and $global:DwbShell.TunnelRecovery){$global:DwbShell.TunnelRecovery}else{New-DwbTunnelRecoveryState}
 $logo = [Windows.Media.Imaging.BitmapImage]::new([Uri][IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\assets\n3zuui-mark.png')))
 (Find 'Logo').Source = $logo
 $window.Icon = $logo
@@ -32,6 +33,12 @@ function Update-TunnelState {
   try {
     $state = Get-DwbTunnelStatus
     if ($state.state -eq 'stopped') {
+      if($script:RecoveryState.enabled){
+        Set-TunnelInputs $false
+        $status.Text='Tunnel ขาด · ระบบกำลังเชื่อมต่อใหม่อัตโนมัติ'
+        $status.Foreground='#EDB77D'
+        return
+      }
       Set-TunnelInputs $true
       if ($script:WasRunning) { $status.Text='tunnel-client หยุดแล้ว · ตรวจ API key และไฟล์โปรแกรม แล้วลอง Start อีกครั้ง'; $status.Foreground='#EDB77D' }
       $script:WasRunning=$false
@@ -47,23 +54,32 @@ function Update-TunnelState {
       $status.Text='กำลังเชื่อมต่อ OpenAI · ' + $running.tunnelId
       $status.Foreground='#EDB77D'
       if (-not $script:StartedAt) { $script:StartedAt=[DateTime]::UtcNow }
-      if (([DateTime]::UtcNow - $script:StartedAt).TotalSeconds -gt 35) { $status.Text='ยังเชื่อมต่อไม่สำเร็จ · ตรวจ Tunnel ID, สิทธิ์ API key และอินเทอร์เน็ต กด Stop เพื่อแก้ไข' }
+      if (([DateTime]::UtcNow - $script:StartedAt).TotalSeconds -gt 35) {
+        $status.Text=if($script:RecoveryState.enabled){'ยังเชื่อมต่อไม่สำเร็จ · ระบบจะลองเชื่อมต่อใหม่อัตโนมัติ'}else{'ยังเชื่อมต่อไม่สำเร็จ · ตรวจ Tunnel ID, สิทธิ์ API key และอินเทอร์เน็ต กด Stop เพื่อแก้ไข'}
+      }
     }
   } catch { $status.Text='อ่านสถานะไม่ได้ · เปิดหน้านี้ใหม่เพื่อตรวจอีกครั้ง'; $status.Foreground='#EDB77D' }
 }
 $startButton.Add_Click({
+  $secureKey=$null
+  $recoveryKey=$null
   try {
     $status.Text='กำลังเตรียมการเชื่อมต่อ…'
-    $null = Start-DwbTunnel $tunnelInput.Text $keyInput.SecurePassword ([bool]$remember.IsChecked) $script:ClientExe
+    $secureKey=$keyInput.SecurePassword
+    if(-not $remember.IsChecked -and $secureKey.Length -gt 0){$recoveryKey=$secureKey.Copy()}
+    $null = Start-DwbTunnel $tunnelInput.Text $secureKey ([bool]$remember.IsChecked) $script:ClientExe
+    Enable-DwbTunnelRecovery $script:RecoveryState $recoveryKey
+    $recoveryKey=$null
     $keyInput.Clear()
     $script:StartedAt=[DateTime]::UtcNow
     $script:WasRunning=$true
     (Find 'KeyHint').Text=if ($remember.IsChecked) { 'จำ key ไว้แล้ว · เว้นว่างเพื่อใช้เดิม หรือกรอกใหม่เพื่อเปลี่ยน' } else { 'ไม่ได้จำ key · กรอกใหม่เมื่อ Start ครั้งถัดไป' }
     Update-TunnelState
   } catch { $status.Text=$_.Exception.Message; $status.Foreground='#EDB77D' }
+  finally { if($secureKey){$secureKey.Dispose()};if($recoveryKey){$recoveryKey.Dispose()} }
 })
 $stopButton.Add_Click({
-  try { Stop-DwbTunnel; $script:WasRunning=$false; $script:StartedAt=$null; Update-TunnelState; $status.Text='หยุด MCP แล้ว · กด Start MCP เมื่อพร้อม'; $status.Foreground='#9DB2C5' }
+  try { Disable-DwbTunnelRecovery $script:RecoveryState;Stop-DwbTunnel; $script:WasRunning=$false; $script:StartedAt=$null; Update-TunnelState; $status.Text='หยุด MCP แล้ว · กด Start MCP เมื่อพร้อม'; $status.Foreground='#9DB2C5' }
   catch { $status.Text='หยุดไม่สำเร็จ · ' + $_.Exception.Message; $status.Foreground='#EDB77D' }
 })
 (Find 'BrowseClient').Add_Click({ (Find 'MachineSetup').RaiseEvent((New-Object Windows.RoutedEventArgs([Windows.Controls.Button]::ClickEvent))) })
@@ -89,7 +105,10 @@ Update-Client
 Update-TunnelState
 $timer=New-Object Windows.Threading.DispatcherTimer
 $timer.Interval=[TimeSpan]::FromSeconds(2)
-$timer.Add_Tick({ Update-TunnelState })
+$timer.Add_Tick({
+  if(-not $global:DwbShell -and $script:RecoveryState.enabled){$null=Invoke-DwbTunnelRecovery $script:RecoveryState ([DateTime]::UtcNow)}
+  Update-TunnelState
+})
 $window.Add_Closed({ $timer.Stop() })
 if ($PreviewPath -or $TestRequestFile) {
   $window.ShowInTaskbar=$false

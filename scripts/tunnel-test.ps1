@@ -50,6 +50,8 @@ class TunnelFixture {
       command=args[0], config=args[1],
       keyCorrect=Environment.GetEnvironmentVariable("DWB_TUNNEL_RUNTIME_KEY")=="dwb-test-key",
       clean=Environment.GetEnvironmentVariable("MCP_COMMAND")==null && Environment.GetEnvironmentVariable("TUNNEL_CLIENT_PROFILE")==null,
+      ttlFlag=args.Length>=5 && args[3]=="--mcp.connection-max-ttl" && args[4]=="168h0m0s",
+      ttlEnv=Environment.GetEnvironmentVariable("MCP_CONNECTION_MAX_TTL"),
       data=Environment.GetEnvironmentVariable("DWB_DATA_DIR")
     }));
     File.WriteAllText((string)health["url_file"],url);
@@ -82,10 +84,13 @@ try {
   $probe=Read-DwbTunnelJson 'probe.json'
   Assert ($probe.command -eq 'run' -and $probe.config -eq '--config') 'Wrong native arguments.'
   Assert ($probe.keyCorrect -and $probe.clean -and $probe.data -eq $env:DWB_DATA_DIR) 'Secret forwarding or environment isolation failed.'
+  Assert ($probe.ttlFlag -and $probe.ttlEnv -eq '168h0m0s') 'Tunnel client did not receive the durable MCP connection TTL.'
   $profile=[IO.File]::ReadAllText((Join-Path (Get-DwbTunnelDirectory) 'profile.json'))
   Assert (-not $profile.Contains('dwb-test-key')) 'Plaintext secret in profile.'
   Assert (-not ([IO.File]::ReadAllText((Join-Path (Get-DwbTunnelDirectory) 'key.dpapi'))).Contains('dwb-test-key')) 'Plaintext secret persisted.'
-  $command=(Read-DwbTunnelJson 'profile.json').mcp.commands[0].command
+  $profile=Read-DwbTunnelJson 'profile.json'
+  Assert ($profile.mcp.connection_max_ttl -eq '168h0m0s') 'MCP connection TTL must match the durable RVN tunnel window.'
+  $command=$profile.mcp.commands[0].command
   Assert ($command.Contains('tunnel-mcp.mjs') -and -not $command.Contains('\')) 'MCP command is not portable through tunnel shlex.'
   $failed=$false
   try { Start-DwbTunnel 'tunnel_other' $key $true $exe | Out-Null } catch { $failed=$true }
@@ -100,6 +105,38 @@ try {
   Assert ((Get-DwbTunnelStatus).state -eq 'stopped') 'Stop failed.'
   $second=Start-DwbTunnel 'tunnel_test' $null $false $exe
   Assert ($second -ne $first) 'Restart did not create a new process.'
+  $recovery=[pscustomobject]@{enabled=$true;secureKey=$key;nextAttemptUtc=[DateTime]::MinValue;failureCount=0;lastStartUtc=[DateTime]::UtcNow.AddMinutes(-5);unreadySinceUtc=$null;lastError=$null}
+  Stop-Process -Id $second -Force
+  $deadline=[DateTime]::UtcNow.AddSeconds(5)
+  while((Get-Process -Id $second -ErrorAction SilentlyContinue) -and [DateTime]::UtcNow -lt $deadline){Start-Sleep -Milliseconds 50}
+  $recovered=Invoke-DwbTunnelRecovery $recovery ([DateTime]::UtcNow)
+  $deadline=[DateTime]::UtcNow.AddSeconds(10)
+  do { Start-Sleep -Milliseconds 100; $state=Get-DwbTunnelStatus } while (-not $state.ready -and [DateTime]::UtcNow -lt $deadline)
+  $recoveredPid=(Get-DwbTunnelProcess).Id
+  Assert ($recovered -eq 'restarted' -and $recoveredPid -ne $second -and $state.ready) 'Unexpected tunnel process exit was not recovered.'
+  Stop-Process -Id $recoveredPid -Force
+  $deadline=[DateTime]::UtcNow.AddSeconds(5)
+  while((Get-Process -Id $recoveredPid -ErrorAction SilentlyContinue) -and [DateTime]::UtcNow -lt $deadline){Start-Sleep -Milliseconds 50}
+  $crashAt=[DateTime]::UtcNow
+  Assert ((Invoke-DwbTunnelRecovery $recovery $crashAt) -eq 'backoff' -and -not (Get-DwbTunnelProcess) -and $recovery.nextAttemptUtc -gt $crashAt) 'Rapid process exit did not enter backoff.'
+  Assert ((Invoke-DwbTunnelRecovery $recovery $recovery.nextAttemptUtc.AddSeconds(-1)) -eq 'backoff' -and -not (Get-DwbTunnelProcess)) 'Recovery ignored its retry backoff.'
+  $recovered=Invoke-DwbTunnelRecovery $recovery $recovery.nextAttemptUtc.AddSeconds(1)
+  $deadline=[DateTime]::UtcNow.AddSeconds(10)
+  do { Start-Sleep -Milliseconds 100; $state=Get-DwbTunnelStatus } while (-not $state.ready -and [DateTime]::UtcNow -lt $deadline)
+  $recoveredPid=(Get-DwbTunnelProcess).Id
+  Assert ($recovered -eq 'restarted' -and $recoveredPid -ne $second -and $state.ready) 'Tunnel was not restarted after the backoff expired.'
+  $health=Read-DwbTunnelJson 'process.json'
+  [IO.File]::WriteAllText($health.healthFile,'http://127.0.0.1:1')
+  $now=$recovery.lastStartUtc
+  Assert ((Invoke-DwbTunnelRecovery $recovery $now) -eq 'waiting') 'Unready tunnel was restarted before the recovery grace period.'
+  Assert ((Invoke-DwbTunnelRecovery $recovery $now.AddSeconds(121)) -eq 'backoff' -and -not (Get-DwbTunnelProcess)) 'Unready tunnel did not stop and back off after the grace period.'
+  $recovered=Invoke-DwbTunnelRecovery $recovery $recovery.nextAttemptUtc.AddSeconds(1)
+  $deadline=[DateTime]::UtcNow.AddSeconds(10)
+  do { Start-Sleep -Milliseconds 100; $state=Get-DwbTunnelStatus } while (-not $state.ready -and [DateTime]::UtcNow -lt $deadline)
+  Assert ($recovered -eq 'restarted' -and (Get-DwbTunnelProcess).Id -ne $recoveredPid -and $state.ready) 'Tunnel stuck unready beyond the recovery grace period.'
+  $recovery.enabled=$false
+  Stop-DwbTunnel
+  Assert ((Invoke-DwbTunnelRecovery $recovery ([DateTime]::UtcNow)) -eq 'disabled' -and -not (Get-DwbTunnelProcess)) 'Manual Stop was undone by tunnel recovery.'
   Assert (-not (Test-Path -LiteralPath (Join-Path (Get-DwbTunnelDirectory) 'key.dpapi'))) 'Opt out failed to remove saved key.'
   Stop-DwbTunnel
   # Simulate a Windows-login launch using an owned loopback tunnel and saved DPAPI key.
