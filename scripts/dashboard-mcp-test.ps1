@@ -43,6 +43,10 @@ $tmp=Join-Path ([IO.Path]::GetTempPath()) ('dwb-dash-mcp-test-'+[guid]::NewGuid(
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try{
   if(Test-McpRunning $tmp){throw 'Test-McpRunning must be false with no pid file'}
+  try{Reset-MuseAiToken $tmp | Out-Null; throw 'should-have-thrown'}catch{
+    if($_.Exception.Message -eq 'should-have-thrown'){throw 'Reset-MuseAiToken must reject a missing bridge config'}
+    if($_.Exception.Message -notmatch 'npm run setup'){throw 'A missing bridge config must point to setup, not claim npm install is missing'}
+  }
   Save-McpPids 0 0 $tmp
   if(-not (Get-McpPids $tmp)){throw 'Get-McpPids must read back saved PIDs'}
   if(Test-McpRunning $tmp){throw 'Test-McpRunning must be false when tracked PIDs are dead'}

@@ -62,6 +62,7 @@ try {
   $doctorText = Invoke-DwbNode $machine.Node @((Join-Path $PSScriptRoot 'doctor.mjs')) $ProjectRoot
   $doctor = $doctorText | ConvertFrom-Json
   if (-not $doctor.ok) { throw 'The configuration check did not pass.' }
+  Invoke-DwbNode $machine.Node @((Join-Path $PSScriptRoot 'bridge-setup.mjs')) $ProjectRoot | Write-Output
   Invoke-DwbNode $machine.Node @((Join-Path $PSScriptRoot 'upgrade.mjs'), 'mark') $ProjectRoot | Write-Output
   $result = @{ ok = $true; configFile = $doctor.configFile; clientConfig = (Join-Path (Split-Path -Parent $doctor.configFile) 'mcp-client.json'); workerCap = $cap }
   [IO.File]::WriteAllText($ResultFile, ($result | ConvertTo-Json -Depth 5), $Utf8)

@@ -19,13 +19,12 @@
 
 import { execFile } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
-import { chmod, mkdir, stat, writeFile } from 'node:fs/promises';
-import { randomBytes } from 'node:crypto';
+import { chmod, mkdir, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { pipeline } from 'node:stream/promises';
-import { loadBridgeConfig, cloudflaredBinary, BRIDGE_CONFIG_FILE } from './bridge-config.mjs';
+import { ensureBridgeConfig, cloudflaredBinary } from './bridge-config.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const execFileAsync = promisify(execFile);
@@ -125,36 +124,16 @@ async function ensureCloudflared() {
   }
 }
 
-async function ensureBridgeConfig(flags) {
-  const prev = await loadBridgeConfig(ROOT);
-  const hadFile = Object.keys(prev).length > 0;
-  const next = {
-    port:
-      flags.port ??
-      (process.env.BRIDGE_PORT ? Number(process.env.BRIDGE_PORT) : undefined) ??
-      prev.port ??
-      3000,
-    path: flags.path ?? process.env.BRIDGE_PATH ?? prev.path ?? '/mcp',
-    token: flags['no-token']
-      ? null
-      : (flags.token ?? process.env.BRIDGE_TOKEN ?? prev.token ?? randomBytes(24).toString('hex')),
-  };
-  const changed =
-    !hadFile || next.port !== prev.port || next.path !== prev.path || next.token !== prev.token;
-  if (changed) {
-    await writeFile(join(ROOT, BRIDGE_CONFIG_FILE), JSON.stringify(next, null, 2) + '\n');
-  }
-  console.error(
-    `[setup] bridge config: ${BRIDGE_CONFIG_FILE} (${hadFile ? (changed ? 'updated' : 'unchanged') : 'created'})`,
-  );
-  return next;
-}
-
 async function main() {
   const flags = parseSetupArgs(process.argv.slice(2));
   if (!flags['skip-build']) await ensureBuilt();
   if (!flags['skip-cloudflared']) await ensureCloudflared();
-  const cfg = await ensureBridgeConfig(flags);
+  const cfg = await ensureBridgeConfig(ROOT, {
+    port: flags.port ?? (process.env.BRIDGE_PORT ? Number(process.env.BRIDGE_PORT) : undefined),
+    path: flags.path ?? process.env.BRIDGE_PATH,
+    token: flags.token ?? process.env.BRIDGE_TOKEN,
+    noToken: flags['no-token'],
+  });
   console.error('');
   console.error('[setup] ready:');
   console.error(`[setup]   bridge : npm run bridge   ->  http://127.0.0.1:${cfg.port}${cfg.path}`);

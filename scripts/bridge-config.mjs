@@ -1,4 +1,5 @@
-import { readFile } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export const BRIDGE_CONFIG_FILE = 'bridge.config.json';
@@ -16,6 +17,28 @@ export async function loadBridgeConfig(root) {
     if (err.code === 'ENOENT') return {};
     throw new Error(`Cannot read ${BRIDGE_CONFIG_FILE}: ${err.message}`);
   }
+}
+
+/** Create the per-install bridge config when missing, preserving existing settings. */
+export async function ensureBridgeConfig(root, overrides = {}) {
+  const previous = await loadBridgeConfig(root);
+  const hadConfig = Object.keys(previous).length > 0;
+  const next = {
+    port: overrides.port ?? previous.port ?? 3000,
+    path: overrides.path ?? previous.path ?? '/mcp',
+    token: overrides.noToken
+      ? null
+      : (overrides.token ?? previous.token ?? randomBytes(24).toString('hex')),
+  };
+  const changed =
+    !hadConfig ||
+    next.port !== previous.port ||
+    next.path !== previous.path ||
+    next.token !== previous.token;
+  if (changed) {
+    await writeFile(join(root, BRIDGE_CONFIG_FILE), JSON.stringify(next, null, 2) + '\n');
+  }
+  return next;
 }
 
 /** Local cloudflared binary managed by `npm run setup` (bin/ is gitignored). */

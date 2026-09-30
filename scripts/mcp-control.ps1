@@ -46,7 +46,7 @@ function New-MuseAiToken{
 
 function Reset-MuseAiToken([string]$Root=$script:RepoRoot){
   $file=Join-Path $Root 'bridge.config.json'
-  if(-not (Test-Path -LiteralPath $file)){throw 'ยังไม่ได้ตั้งค่า — รัน npm install ก่อน'}
+  if(-not (Test-Path -LiteralPath $file)){throw 'ยังไม่ได้ตั้งค่า bridge — เปิด Setup อีกครั้ง หรือรัน npm run setup'}
   $json=Get-Content -LiteralPath $file -Raw -Encoding UTF8 | ConvertFrom-Json
   $newToken=New-MuseAiToken
   $json.token=$newToken

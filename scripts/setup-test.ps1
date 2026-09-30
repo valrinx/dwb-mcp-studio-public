@@ -81,6 +81,10 @@ try {
   & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $nextRoot 'scripts\setup.ps1') -TestRequestFile $requestFile -PreviewPath (Join-Path $TestRoot 'upgrade-success.png')
   Assert ($LASTEXITCODE -eq 0) 'Upgrade GUI failed.'
   foreach ($file in $preserved.Keys) { Assert ((Get-FileHash -LiteralPath $file).Hash -eq $preserved[$file]) 'Saved user data changed during upgrade.' }
+  $bridgeConfigPath=Join-Path $nextRoot 'bridge.config.json'
+  Assert (Test-Path -LiteralPath $bridgeConfigPath -PathType Leaf) 'Upgrade must create the Muse AI bridge config even when dependencies are reused and npm postinstall does not run.'
+  $bridgeConfig=Get-Content -LiteralPath $bridgeConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
+  Assert ($bridgeConfig.port -eq 3000 -and $bridgeConfig.path -eq '/mcp' -and $bridgeConfig.token -match '^[A-Fa-f0-9]{48}$') 'Upgrade must create a usable default bridge config without exposing its token.'
   $upgraded=Get-Content -LiteralPath $env:DWB_CONFIG_FILE -Raw -Encoding UTF8 | ConvertFrom-Json
   Assert ($upgraded.workerEntry.StartsWith($nextRoot)) 'Worker path was not migrated.'
   Assert ($upgraded.workspace -eq $Workspace -and $upgraded.workerCap -eq 3) 'Workspace/cap changed.'
