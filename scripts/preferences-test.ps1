@@ -31,11 +31,15 @@ try{
   Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase
   . (Join-Path $PSScriptRoot 'preferences-ui.ps1')
   $global:DwbShell=@{Window=$null;Preferences=$null}
+  . (Join-Path $PSScriptRoot 'tunnel-common.ps1')
+  $null=New-Item -ItemType Directory -Path (Get-DwbTunnelDirectory) -Force
+  $testKey=ConvertTo-SecureString 'preferences-test-key' -AsPlainText -Force
+  [IO.File]::WriteAllText((Join-Path (Get-DwbTunnelDirectory) 'key.dpapi'),(ConvertFrom-SecureString $testKey))
   $uiReport=Join-Path $env:DWB_DATA_DIR 'ui-test.txt'
   Show-DwbPreferences $registry $uiReport $startupTaskName
   if([IO.File]::ReadAllText($uiReport) -ne 'PASS'){throw 'Preferences Save button failed'}
   $saved=Get-DwbPreferences
-  if(-not $saved.startWithWindows -or $saved.closeAction -ne 'exit' -or $saved.minimizeToTray){throw 'Preferences UI choices were not saved'}
+  if($saved.startWithWindows -or -not $saved.connectOnStartup -or $saved.closeAction -ne 'exit' -or $saved.minimizeToTray){throw 'Preferences UI choices were not saved'}
   $next=Join-Path $env:DWB_DATA_DIR 'new version'
   $null=New-Item -ItemType Directory -Path (Join-Path $next 'scripts') -Force
   Copy-Item -LiteralPath (Join-Path $PSScriptRoot '..\N3zuui Studio.exe') -Destination $next

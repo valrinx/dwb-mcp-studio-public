@@ -11,10 +11,10 @@
  </Window.Resources>
  <StackPanel Margin="28">
   <TextBlock Text="ให้ N3zuui ทำงานในแบบที่คุณเลือก" FontSize="22" FontWeight="SemiBold"/>
-  <TextBlock Text="ตอนเข้าสู่ Windows" Foreground="#08B8D2" Margin="0,24,0,0" FontSize="14"/>
+  <TextBlock Text="เมื่อเปิด N3zuui Studio" Foreground="#08B8D2" Margin="0,24,0,0" FontSize="14"/>
   <CheckBox x:Name="Startup" Content="เปิด N3zuui พร้อม Windows โดยเริ่มใน tray"/>
-  <CheckBox x:Name="Connect" Content="Start MCP อัตโนมัติด้วย Tunnel ID และ key ที่บันทึกไว้"/>
-  <TextBlock Text="หากยังตั้งค่าไม่ครบ หรือเชื่อมต่อไม่ได้ จะแสดงหน้าต่างให้แก้ไข" Foreground="#89AABE" Margin="20,8,0,0"/>
+  <CheckBox x:Name="Connect" Content="Start MCP อัตโนมัติเมื่อเปิดแอป โดยใช้ Tunnel ID และ key ที่บันทึกไว้"/>
+  <TextBlock Text="ทำงานทั้งเมื่อเปิดแอปเองและเมื่อเข้า Windows หากเชื่อมต่อไม่ได้จะแสดงหน้าต่างให้แก้ไข" Foreground="#89AABE" Margin="20,8,0,0"/>
   <TextBlock Text="เมื่อกด × ปิดหน้าต่าง" Foreground="#08B8D2" Margin="0,24,0,0" FontSize="14"/>
   <RadioButton x:Name="CloseTray" GroupName="CloseAction" Content="ซ่อนไป tray — MCP และงานยังทำต่อ"/>
   <RadioButton x:Name="CloseExit" GroupName="CloseAction" Content="ปิดแอปและหยุด MCP"/>
@@ -36,16 +36,14 @@
   $dialog.FindName('Error').Text=[string]$preferences.readError
   $dialog.FindName('Startup').IsChecked=$preferences.startWithWindows
   $dialog.FindName('Connect').IsChecked=$preferences.connectOnStartup
-  $dialog.FindName('Connect').IsEnabled=$preferences.startWithWindows
   $dialog.FindName('CloseTray').IsChecked=$preferences.closeAction -eq 'tray'
   $dialog.FindName('CloseExit').IsChecked=$preferences.closeAction -eq 'exit'
   $dialog.FindName('Minimize').IsChecked=$preferences.minimizeToTray
-  $dialog.FindName('Startup').Add_Click({$dialog.FindName('Connect').IsEnabled=[bool]$dialog.FindName('Startup').IsChecked})
   $dialog.FindName('Cancel').Add_Click({$dialog.Close()})
   $dialog.FindName('Save').Add_Click({
     try{
       $next=@{startWithWindows=[bool]$dialog.FindName('Startup').IsChecked;connectOnStartup=[bool]$dialog.FindName('Connect').IsChecked;closeAction=$(if($dialog.FindName('CloseExit').IsChecked){'exit'}else{'tray'});minimizeToTray=[bool]$dialog.FindName('Minimize').IsChecked}
-      if($next.startWithWindows -and $next.connectOnStartup -and (-not(Test-Path -LiteralPath (Join-Path (Get-DwbTunnelDirectory) 'key.dpapi')))){throw 'เปิดหน้า Tunnel / API key และเลือกจำ key ก่อนเปิด Start MCP อัตโนมัติ'}
+      if($next.connectOnStartup -and (-not(Test-Path -LiteralPath (Join-Path (Get-DwbTunnelDirectory) 'key.dpapi')))){throw 'เปิดหน้า Tunnel / API key และเลือกจำ key ก่อนเปิด Start MCP อัตโนมัติ'}
       Save-DwbPreferences $next $RegistryPath $startupTaskName
       $global:DwbShell.Preferences=$next
       $dialog.Close()
@@ -54,8 +52,9 @@
   if($TestReport){
     $dialog.WindowStartupLocation='Manual';$dialog.Left=-20000;$dialog.Top=-20000
     $dialog.Add_ContentRendered({
-      $dialog.FindName('Startup').IsChecked=$true
-      $dialog.FindName('Connect').IsChecked=$false
+      $dialog.FindName('Startup').IsChecked=$false
+      if(-not $dialog.FindName('Connect').IsEnabled){[IO.File]::WriteAllText($TestReport,'FAIL: connect auto-start is disabled when Windows auto-start is off');$dialog.Close();return}
+      $dialog.FindName('Connect').IsChecked=$true
       $dialog.FindName('CloseExit').IsChecked=$true
       $dialog.FindName('Minimize').IsChecked=$false
       $dialog.UpdateLayout()

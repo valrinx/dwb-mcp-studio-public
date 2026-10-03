@@ -22,7 +22,7 @@ $mutex=New-Object Threading.Mutex($false,('Local\DWB-Studio-UI-'+$identity))
 $owned=$false
 try{$owned=$mutex.WaitOne(0)}catch [Threading.AbandonedMutexException]{$owned=$true}
 if(-not $owned){if(-not $Startup){$null=$wake.Set()};$wake.Dispose();$mutex.Dispose();return}
-$global:DwbShell=@{Window=$null;AllowClose=$false;Next='setup';Exiting=$false;Frame=$null;Preferences=(Get-DwbPreferences);StartupPending=[bool]$Startup;Quitting=$false;AutoConnectDeadline=$null;AutoConnectProbe=[DateTime]::MinValue;TunnelRecovery=(New-DwbTunnelRecoveryState);NextTunnelRecoveryCheck=[DateTime]::MinValue}
+$global:DwbShell=@{Window=$null;AllowClose=$false;Next='setup';Exiting=$false;Frame=$null;Preferences=(Get-DwbPreferences);StartupPending=[bool]$Startup;AutoConnectAttempted=$false;Quitting=$false;AutoConnectDeadline=$null;AutoConnectProbe=[DateTime]::MinValue;TunnelRecovery=(New-DwbTunnelRecoveryState);NextTunnelRecoveryCheck=[DateTime]::MinValue}
 if(Get-DwbTunnelProcess){Enable-DwbTunnelRecovery $global:DwbShell.TunnelRecovery}
 $tray=New-Object Windows.Forms.NotifyIcon
 $tray.Icon=New-Object Drawing.Icon((Join-Path $PSScriptRoot '..\assets\n3zuui.ico'),32,32)
@@ -73,19 +73,20 @@ function global:Show-DwbWindow($Window){
   $global:DwbShell.Frame=$frame
   $Window.Add_Closed({$global:DwbShell.Frame.Continue=$false})
   $Window.Show()
-  if($global:DwbShell.StartupPending){
-    $global:DwbShell.StartupPending=$false
-    if($Window.FindName('McpToggle') -or $Window.FindName('StartMcp')){
+  if($Window.FindName('McpToggle') -or $Window.FindName('StartMcp')){
+    if($global:DwbShell.StartupPending){
+      $global:DwbShell.StartupPending=$false
       Hide-DwbWindow
-      if($global:DwbShell.Preferences.connectOnStartup){
-        try{
-          $settings=Read-DwbTunnelJson 'settings.json'
-          if(-not $settings){throw 'กรุณาตั้งค่า Tunnel ID และบันทึก key ก่อน'}
-          Enable-DwbTunnelRecovery $global:DwbShell.TunnelRecovery
-          if(-not(Get-DwbTunnelProcess)){$null=Invoke-DwbTunnelRecovery $global:DwbShell.TunnelRecovery ([DateTime]::UtcNow)}
-          $global:DwbShell.AutoConnectDeadline=[DateTime]::UtcNow.AddSeconds(150)
-        }catch{Restore-DwbWindow;[Windows.MessageBox]::Show($_.Exception.Message,'N3zuui · Start MCP อัตโนมัติ')|Out-Null}
-      }
+    }
+    if($global:DwbShell.Preferences.connectOnStartup -and -not $global:DwbShell.AutoConnectAttempted){
+      $global:DwbShell.AutoConnectAttempted=$true
+      try{
+        $settings=Read-DwbTunnelJson 'settings.json'
+        if(-not $settings){throw 'กรุณาตั้งค่า Tunnel ID และบันทึก key ก่อน'}
+        Enable-DwbTunnelRecovery $global:DwbShell.TunnelRecovery
+        if(-not(Get-DwbTunnelProcess)){$null=Invoke-DwbTunnelRecovery $global:DwbShell.TunnelRecovery ([DateTime]::UtcNow)}
+        $global:DwbShell.AutoConnectDeadline=[DateTime]::UtcNow.AddSeconds(150)
+      }catch{Restore-DwbWindow;[Windows.MessageBox]::Show($_.Exception.Message,'N3zuui · Start MCP อัตโนมัติ')|Out-Null}
     }
   }
   [Windows.Threading.Dispatcher]::PushFrame($frame)

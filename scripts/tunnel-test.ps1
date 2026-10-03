@@ -149,6 +149,13 @@ try {
   Assert (Get-DwbTunnelStatus).ready 'Startup did not connect using the saved key.'
   Stop-DwbTunnel
   Write-Output 'STARTUP_MCP_PASS: simulated login, saved DPAPI key, hidden dashboard, ready loopback tunnel.'
+  # A normal app launch with auto-connect enabled must also restore a stopped tunnel.
+  $interactiveReport=Join-Path $root 'interactive-ui.txt'
+  & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $install 'scripts\app.ps1') -UiTestReport $interactiveReport
+  Assert ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $interactiveReport)) 'Interactive shell failed.'
+  Assert (Get-DwbTunnelStatus).ready 'Opening Studio normally did not reconnect with auto-connect enabled.'
+  Stop-DwbTunnel
+  Write-Output 'INTERACTIVE_AUTOCONNECT_PASS: normal app launch, saved DPAPI key, ready loopback tunnel.'
   # Execute the real wrapper beside a fixture start.mjs to verify credential removal.
   $wrapperRoot=Join-Path $root 'wrapper'
   $null=New-Item -ItemType Directory -Path $wrapperRoot
