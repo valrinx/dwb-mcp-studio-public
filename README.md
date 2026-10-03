@@ -237,13 +237,15 @@ path ในตัวอย่างต้องเปลี่ยนเป็น
 
 เครื่องมือ N3zuui ที่เพิ่มจาก upstream มี 8 ตัว: `dwb_bridge_status`, `dwb_broker_status`, `dwb_session_status`, `dwb_restart_worker`, `dwb_list_sessions`, `dwb_list_detached_sessions`, `dwb_resume_session`, `workspace`
 
+ยังมี `skills` สำหรับดู/ติดตั้ง/เปิดใช้ Agent Skills แบบมีนโยบาย `auto`, `ask` หรือ `manual` และอ่านไฟล์ประกอบของ skill ได้ โดยการติดตั้งจาก GitHub ต้องเกิดจากคำขอของผู้ใช้โดยตรง
+
 เมื่อผู้ใช้ระบุ working directory ให้ AI เรียก `workspace(action="bind", path="<absolute path>")` ทันที ก่อนทำงานกับไฟล์หรือ shell โดยคำสั่งเดียวจะลงทะเบียนหรือใช้ workspace ที่ตรงกับ path นั้น แล้วผูกกับแชทปัจจุบัน ไม่ต้องให้ผู้ใช้สั่ง register แยก การ bind เปลี่ยนโฟลเดอร์เริ่มต้นของ worker ในแชทนั้น แต่ไม่ขยายสิทธิ์ `allowedDirectories` ของ Desktop Commander ใช้ absolute path กับ file tools ต่อไป
 
 ตัว broker ไม่ได้อ่านข้อความแชทโดยตรง การแปลงข้อความที่ผู้ใช้บอก path เป็นคำสั่ง bind ขึ้นอยู่กับ AI/client ที่เรียก MCP เราใส่แนวทางนี้ทั้ง server instructions และคำอธิบาย tool ถ้ายังไม่มีการระบุ workspace แชทจะยังไม่มี binding และใช้โฟลเดอร์เริ่มต้นจาก Setup โดยไม่เดาจากแชทอื่น
 
 ## ข้อมูลและขอบเขต
 
-- เก็บข้อมูลใน `%LOCALAPPDATA%\DWB-MCP-Studio` แยกจากโฟลเดอร์โปรแกรม เพื่อเก็บการตั้งค่าและ workspace ไว้เมื่ออัปเดต
+- บน Windows เก็บข้อมูลเดิมใน `%LOCALAPPDATA%\DWB-MCP-Studio` เพื่อให้ N3zuui รุ่นใหม่ใช้การตั้งค่าและ workspace เดิมต่อได้; macOS/Linux ใช้โฟลเดอร์ข้อมูลมาตรฐานของแต่ละระบบ
 - ไม่มีการนำเข้าแชต ประวัติ Desktop Commander หรือ config ส่วนตัวโดยอัตโนมัติ
 - `base-policy.json` ที่ Setup สร้างอนุญาตโฟลเดอร์งานที่เลือก ปรับเพิ่มโฟลเดอร์ได้เอง แล้วเริ่ม broker ใหม่
 - แต่ละ worker มี config home ของตัวเอง โดยไม่เปลี่ยน OS home ที่ Git/SSH และคำสั่งอื่นใช้ และไม่ patch ไฟล์ Desktop Commander บน disk
@@ -254,6 +256,13 @@ path ในตัวอย่างต้องเปลี่ยนเป็น
 - Broker crash จะสร้าง worker ใหม่ จึงไม่กู้ in-memory process/search handles ของ worker เก่า
 
 ดู [การเชื่อมต่อและ config](docs/CONFIGURATION.md), [การอัปเดต/ถอน](docs/OPERATIONS.md) และ [ขอบเขตการแจก](THIRD-PARTY.md)
+
+## Ubuntu/Linux และ macOS
+
+- Ubuntu มีตัวติดตั้ง `install.sh`, CLI สำหรับ Setup/doctor/tunnel และ user `systemd` service; รายละเอียดอยู่ใน [คู่มือ Ubuntu](docs/UBUNTU-TH.md)
+- macOS มีแอป native แบบทดลองพร้อม menu-bar controller, secure credential storage ผ่าน Keychain, launch agent และหน้า UI ใน WebView; เริ่มที่ [คู่มือ macOS](docs/MACOS-PREVIEW-TH.md)
+- แพ็กเกจ Linux/macOS จะติดตั้ง Desktop Commander แยกและดาวน์โหลด tunnel-client ด้วย SHA-256 ที่ตรึงไว้ ตัว executable ภายนอกและข้อมูลผู้ใช้ไม่รวมใน source release
+- การ build/test native macOS ต้องใช้ macOS และ Xcode Command Line Tools; Windows/Linux CI ตรวจส่วน portable และมี workflow ของ macOS แยกสำหรับ build จริง
 
 ## พัฒนาและทดสอบ
 

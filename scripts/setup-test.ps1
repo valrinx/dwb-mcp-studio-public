@@ -59,6 +59,10 @@ try {
   foreach ($directory in $nextFolders) { Copy-Item -LiteralPath (Join-Path $ProjectRoot $directory) -Destination $nextRoot -Recurse }
   if(-not $nextBuilt){Copy-Item -LiteralPath (Join-Path $ProjectRoot 'tsconfig.json') -Destination $nextRoot}
   foreach ($file in @('package.json','package-lock.json')) { Copy-Item -LiteralPath (Join-Path $ProjectRoot $file) -Destination $nextRoot }
+  $lockGraphScript='const lock=require(process.argv[1]); console.log(JSON.stringify(Object.entries(lock.packages).filter(([key])=>key!=="").sort(([a],[b])=>a.localeCompare(b))));'
+  $oldDependencyGraph=Invoke-DwbNode $machine.Node @('-e',$lockGraphScript,(Join-Path $firstSource 'package-lock.json')) $TestRoot
+  $newDependencyGraph=Invoke-DwbNode $machine.Node @('-e',$lockGraphScript,(Join-Path $nextRoot 'package-lock.json')) $TestRoot
+  $dependencyGraphUnchanged=$oldDependencyGraph.Trim() -ceq $newDependencyGraph.Trim()
   $sentinel=Join-Path $InstallRoot 'node_modules\dwb-reuse-proof.txt'
   [IO.File]::WriteAllText($sentinel,'must survive migration without npm ci',$Utf8)
   $tunnelData=Join-Path $env:DWB_DATA_DIR 'tunnel'
@@ -89,7 +93,8 @@ try {
   Assert ($upgraded.workerEntry.StartsWith($nextRoot)) 'Worker path was not migrated.'
   Assert ($upgraded.workspace -eq $Workspace -and $upgraded.workerCap -eq 3) 'Workspace/cap changed.'
   Assert ($upgraded.basePolicy -eq $customPolicy -and $upgraded.customOption -eq 'preserve me') 'Custom configuration was lost.'
-  Assert (Test-Path -LiteralPath (Join-Path $nextRoot 'node_modules\dwb-reuse-proof.txt')) 'npm ci ran instead of reusing dependencies.'
+  $reusedSentinel=Test-Path -LiteralPath (Join-Path $nextRoot 'node_modules\dwb-reuse-proof.txt')
+  Assert ($reusedSentinel -eq $dependencyGraphUnchanged) 'Dependency reuse did not match the old/new lockfile graph.'
   Assert (Test-Path -LiteralPath $sentinel) 'Old installation was modified.'
   $client=Get-Content -LiteralPath (Join-Path $env:DWB_DATA_DIR 'mcp-client.json') -Raw | ConvertFrom-Json
   Assert ($client.mcpServers.'n3zuui-core'.args[0].StartsWith($nextRoot)) 'Client launcher still points to old installation.'
@@ -106,7 +111,8 @@ try {
   Assert ($failureProcess.ExitCode -eq 1) 'Verification failure should fail setup.'
   foreach ($file in $beforeFailure.Keys) { Assert ((Get-FileHash -LiteralPath $file).Hash -eq $beforeFailure[$file]) 'Configuration rollback failed.' }
   Write-Output 'UPGRADE_ROLLBACK_PASS: failed final verification restored both configuration files.'
-  Write-Output 'UPGRADE_GUI_PASS: reused dependencies, no npm ci, old installation retained, saved key/tunnel/workspace/policy preserved, paths updated.'
+  $dependencyAction=if($dependencyGraphUnchanged){'reused compatible dependencies'}else{'reinstalled dependencies after the lockfile changed'}
+  Write-Output ("UPGRADE_GUI_PASS: $dependencyAction, old installation retained, saved key/tunnel/workspace/policy preserved, paths updated.")
   Write-Output 'SETUP_TEST_PASS: requirements, safe arguments, GUI save flow, production install, independent worker, generated config.'
   Write-Output "Preview: $(Join-Path $TestRoot 'setup-success.png')"
 } finally {

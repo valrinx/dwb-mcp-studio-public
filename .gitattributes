@@ -7,6 +7,8 @@
 *.md text eol=crlf
 *.yml text eol=crlf
 *.yaml text eol=crlf
+*.sh text eol=lf
+*.command text eol=lf
 *.png binary
 *.ico binary
 *.exe binary

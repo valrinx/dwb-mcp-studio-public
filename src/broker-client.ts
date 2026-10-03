@@ -1,6 +1,6 @@
-import { runtimeIdentity } from './runtime-identity.js';
+import { runtimeIdentity, sameRuntimePath } from './runtime-identity.js';
 import { randomUUID } from 'node:crypto';
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { createConnection, type Socket } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,33 +41,48 @@ async function connectOnce(timeoutMs = 400): Promise<Socket> {
   });
 }
 
-function startBroker(): void {
+function startBroker(): ChildProcess | undefined {
   if (process.env.DWB_BROKER_AUTOSTART === 'false') return;
   const child = spawn(process.execPath, [brokerEntry], {
     cwd: projectRoot,
     env: inheritedEnv,
+    // The broker must outlive its stdio adapter on Windows as well as POSIX.
     detached: true,
     windowsHide: true,
     stdio: 'ignore',
   });
+  child.once('error', () => {});
   child.unref();
+  return child;
 }
 
 async function connectWithAutostart(): Promise<Socket> {
+  let candidate: ChildProcess | undefined;
   try {
     return await connectOnce();
   } catch {
     if (process.env.DWB_BROKER_AUTOSTART === 'false')
       throw new Error(`N3zuui broker is not running at ${endpoint}`);
-    startBroker();
+    candidate = startBroker();
   }
   let last: unknown = null;
+  let retryAt = Date.now() + 500;
+  let retryDelay = 500;
+  let starts = 1;
   for (let i = 0; i < 50; i += 1) {
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
     try {
       return await connectOnce(500);
     } catch (error) {
       last = error;
+      // A Unix broker may be draining while it still owns its SQLite lease.
+      // The contender exits cleanly; retry a few times as the old broker closes.
+      if (candidate?.exitCode === 0 && starts < 4 && Date.now() >= retryAt) {
+        candidate = startBroker();
+        starts += 1;
+        retryDelay *= 2;
+        retryAt = Date.now() + retryDelay;
+      }
     }
   }
   throw new Error(`N3zuui broker did not become ready: ${String(last)}`);
@@ -133,7 +148,7 @@ export class BrokerClient {
     const running = hello?.broker?.runtime;
     if (
       running?.version !== runtimeIdentity.version ||
-      running?.appRoot?.toLowerCase() !== runtimeIdentity.appRoot.toLowerCase()
+      !sameRuntimePath(running?.appRoot, runtimeIdentity.appRoot)
     )
       throw new Error(
         'DWB_RUNTIME_MISMATCH: another release is still running. Finish its work, Stop MCP, then open Setup in this release to update the broker. Saved settings are retained.',

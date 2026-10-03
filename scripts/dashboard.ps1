@@ -145,6 +145,8 @@ function Finish-Probe{
 }
 (Find 'AppPreferences').Add_Click({if(Get-Command Show-DwbPreferences -ErrorAction SilentlyContinue){Show-DwbPreferences}})
 (Find 'AppPreferences').IsEnabled=[bool]$global:DwbShell
+(Find 'Skills').Add_Click({if(Get-Command Show-DwbSkills -ErrorAction SilentlyContinue){Show-DwbSkills}})
+(Find 'Skills').IsEnabled=[bool]$global:DwbShell
 (Find 'Connection').Add_Click({Open-DwbScreen 'tunnel-setup.ps1'})
 (Find 'MachineSetup').Add_Click({Open-DwbScreen 'setup.ps1' '-ConfigureOnly'})
 (Find 'McpServers').Add_Click({Open-DwbScreen 'mcp-manager.ps1'})(Find 'MuseAI').Add_Click({Open-DwbScreen 'muse-ai.ps1'})

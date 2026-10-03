@@ -138,7 +138,7 @@ async function main() {
   console.error('[setup] ready:');
   console.error(`[setup]   bridge : npm run bridge   ->  http://127.0.0.1:${cfg.port}${cfg.path}`);
   console.error(
-    `[setup]   token  : ${cfg.token === null ? '(none — bearer auth disabled)' : cfg.token}`,
+    `[setup]   token  : ${cfg.token === null ? '(none — bearer auth disabled)' : '(saved privately in bridge.config.json; not printed)'}`,
   );
   console.error('[setup]   tunnel : npm run tunnel   ->  public https URL for the bridge');
 }

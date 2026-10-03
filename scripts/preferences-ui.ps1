@@ -1,4 +1,6 @@
 ﻿function global:Show-DwbPreferences([string]$RegistryPath='HKCU:\Software\Microsoft\Windows\CurrentVersion\Run',[string]$TestReport) {
+  # Optional third positional argument selects the startup task to update.
+  $startupTaskName=if($args.Count -gt 0 -and $args[0]){[string]$args[0]}else{'N3zuui Studio Startup'}
   [xml]$xaml=@'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="N3zuui · การเปิดและปิดแอป" Width="550" SizeToContent="Height" ResizeMode="NoResize" WindowStartupLocation="CenterOwner" Background="#070B14" Foreground="#EDF7FF" FontFamily="Leelawadee UI, Segoe UI">
  <Window.Resources>
@@ -44,7 +46,7 @@
     try{
       $next=@{startWithWindows=[bool]$dialog.FindName('Startup').IsChecked;connectOnStartup=[bool]$dialog.FindName('Connect').IsChecked;closeAction=$(if($dialog.FindName('CloseExit').IsChecked){'exit'}else{'tray'});minimizeToTray=[bool]$dialog.FindName('Minimize').IsChecked}
       if($next.startWithWindows -and $next.connectOnStartup -and (-not(Test-Path -LiteralPath (Join-Path (Get-DwbTunnelDirectory) 'key.dpapi')))){throw 'เปิดหน้า Tunnel / API key และเลือกจำ key ก่อนเปิด Start MCP อัตโนมัติ'}
-      Save-DwbPreferences $next $RegistryPath
+      Save-DwbPreferences $next $RegistryPath $startupTaskName
       $global:DwbShell.Preferences=$next
       $dialog.Close()
     }catch{$dialog.FindName('Error').Text=$_.Exception.Message}

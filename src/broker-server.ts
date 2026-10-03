@@ -1,6 +1,8 @@
 import { RequestLifetime } from './request-lifetime.js';
+import { acquireUnixBrokerLease } from './unix-broker-lease.js';
 import { createServer, type Socket } from 'node:net';
-import { unlink } from 'node:fs/promises';
+import { chmod, lstat, mkdir, unlink } from 'node:fs/promises';
+import { dirname, isAbsolute } from 'node:path';
 import {
   brokerEndpoint,
   BROKER_PROTOCOL_VERSION,
@@ -13,7 +15,7 @@ import { brokerTools, textResult, NOT_A_CONTROL_TOOL } from './broker-tools.js';
 import { EventLog } from './event-log.js';
 import { SessionRegistry } from './session-registry.js';
 import { CoreStore } from './core-store.js';
-import { WorkspaceStore } from './workspace-store.js';
+import { WorkspaceStore, pathWithin } from './workspace-store.js';
 import { AgentTaskStore, type AgentMessageView, type TaskStatus } from './agent-task-store.js';
 import { AgentWakeQueue } from './agent-wake.js';
 import { AutonomousAgentSupervisor } from './autonomous-agent-runner.js';
@@ -22,12 +24,22 @@ import { ExternalMcpManager } from './external-mcp-manager.js';
 import { ExternalMcpStore } from './external-mcp-store.js';
 import { ExternalMcpController } from './external-mcp-controller.js';
 import { ExternalMcpInstaller } from './external-mcp-installer.js';
+import { SkillStore, type SkillPolicy } from './skill-store.js';
+import {
+  RECOMMENDED_SKILLS,
+  installGitHubSkill,
+  installRecommendedSkill,
+} from './skill-sources.js';
+import { PayloadGuard } from './payload-guard.js';
 
 applySavedBrokerConfig();
 const endpoint = brokerEndpoint();
+let unixLease: ReturnType<typeof acquireUnixBrokerLease>;
 const log = new EventLog();
+const skillPayloadGuard = new PayloadGuard(log);
 let coreDb: CoreStore;
 let workspaceStore: WorkspaceStore;
+let skillStore: SkillStore;
 let agentTasks: AgentTaskStore;
 let registry: SessionRegistry;
 let autonomousAgents: AutonomousAgentSupervisor | null = null;
@@ -121,6 +133,20 @@ function callParams(message: BrokerRequest) {
   return { name: params.name, arguments: (params.arguments ?? {}) as Record<string, unknown> };
 }
 
+function skillPolicy(value: unknown): SkillPolicy {
+  if (value === 'auto' || value === 'ask' || value === 'manual') return value;
+  throw new Error('Skill policy must be auto, ask, or manual.');
+}
+
+function argText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function skillReadNumber(value: unknown, name: string): number {
+  if (typeof value !== 'number') throw new Error(`${name} must be a number.`);
+  return value;
+}
+
 function requestContext(message: BrokerRequest): BrokerLogicalContext | null {
   const raw = message.params?.context;
   if (!raw || typeof raw !== 'object') return null;
@@ -146,6 +172,105 @@ async function controlTool(
   lifetime?: RequestLifetime,
 ): Promise<unknown | typeof NOT_A_CONTROL_TOOL> {
   if (!ctx.sessionId) throw new Error('MCP session is not initialized');
+  if (name === 'skills') {
+    const action = argText(args.action);
+    const workspace = workspaceStore.current(sessionId);
+    if (action === 'list') return textResult({ workspace, skills: skillStore.list(workspace?.id) });
+    if (action === 'catalog') return textResult({ skills: RECOMMENDED_SKILLS });
+
+    if (action === 'install_github' || action === 'install_recommended') {
+      if (args.explicit_user_request !== true)
+        throw new Error(
+          'DWB_SKILL_REMOTE_INSTALL_REQUIRES_USER_REQUEST: remote Skill installs require an explicit user request.',
+        );
+      if (action === 'install_github') {
+        const githubUrl = argText(args.github_url);
+        if (!githubUrl) throw new Error('github_url is required.');
+        const rawPolicy = argText(args.policy);
+        return textResult({
+          installed: await installGitHubSkill(skillStore, githubUrl, {
+            defaultPolicy: rawPolicy ? skillPolicy(rawPolicy) : undefined,
+          }),
+        });
+      }
+      const skill = argText(args.skill);
+      if (!skill) throw new Error('skill is required.');
+      return textResult({ installed: await installRecommendedSkill(skillStore, skill) });
+    }
+
+    if (action === 'install_local') {
+      if (!workspace) throw new Error('DWB_SKILL_WORKSPACE_REQUIRED: bind a workspace first.');
+      const source = argText(args.path);
+      if (!source || !isAbsolute(source))
+        throw new Error('install_local requires an absolute path.');
+      if (!pathWithin(workspace.root, source))
+        throw new Error(
+          'DWB_SKILL_SOURCE_OUTSIDE_WORKSPACE: local installs must come from the bound workspace.',
+        );
+      const rawPolicy = argText(args.policy);
+      const installed = await skillStore.installLocal({
+        sourceDir: source,
+        defaultPolicy: rawPolicy ? skillPolicy(rawPolicy) : undefined,
+      });
+      return textResult({ installed });
+    }
+
+    if (action === 'set_default_policy') {
+      const skill = argText(args.skill);
+      if (!skill) throw new Error('skill is required.');
+      return textResult({
+        skill: await skillStore.setDefaultPolicy(skill, skillPolicy(args.policy)),
+      });
+    }
+
+    if (!workspace) throw new Error('DWB_SKILL_WORKSPACE_REQUIRED: bind a workspace first.');
+    if (action === 'set_workspace_policy') {
+      const skill = argText(args.skill);
+      if (!skill) throw new Error('skill is required.');
+      return textResult({
+        skill: await skillStore.setWorkspacePolicy(workspace.id, skill, skillPolicy(args.policy)),
+      });
+    }
+    if (action === 'clear_workspace_policy') {
+      const skill = argText(args.skill);
+      if (!skill) throw new Error('skill is required.');
+      return textResult({ skill: skillStore.clearWorkspacePolicy(workspace.id, skill) });
+    }
+    if (action === 'activate') {
+      const skill = argText(args.skill);
+      if (!skill) throw new Error('skill is required.');
+      return textResult(
+        skillStore.activate({
+          sessionId,
+          workspaceId: workspace.id,
+          skillId: skill,
+          explicitUserRequest: args.explicit_user_request === true,
+          userConfirmed: args.user_confirmed === true,
+          approvalId: argText(args.approval_id) || undefined,
+        }),
+      );
+    }
+    if (action === 'read_file') {
+      const skill = argText(args.skill);
+      const relativePath = argText(args.relative_path);
+      if (!skill || !relativePath) throw new Error('skill and relative_path are required.');
+      return textResult({
+        skill,
+        relativePath,
+        ...(await skillStore.readActivatedSkillPage(
+          sessionId,
+          workspace.id,
+          skill,
+          relativePath,
+          args.offset === undefined ? undefined : skillReadNumber(args.offset, 'offset'),
+          args.length === undefined ? undefined : skillReadNumber(args.length, 'length'),
+        )),
+      });
+    }
+    throw new Error(
+      'skills.action must be one of: list, catalog, install_local, install_github, install_recommended, set_default_policy, set_workspace_policy, clear_workspace_policy, activate, read_file.',
+    );
+  }
   if (name === 'dwb_external_mcp_list_tools') {
     if (!externalMcpManager) throw new Error('External MCP manager is not ready');
     const rawServerId = typeof args.server_id === 'string' ? args.server_id.trim() : '';
@@ -587,7 +712,18 @@ async function handle(
       message.id,
       lifetime,
     );
-    if (controlled !== NOT_A_CONTROL_TOOL) return controlled;
+    if (controlled !== NOT_A_CONTROL_TOOL) {
+      if (params.name === 'skills') {
+        return (
+          await skillPayloadGuard.apply(
+            params.name,
+            params.arguments,
+            controlled as ReturnType<typeof textResult>,
+          )
+        ).result;
+      }
+      return controlled;
+    }
     if (externalMcpManager!.isManagedTool(sessionId, params.name))
       return externalMcpManager!.callTool(sessionId, params.name, params.arguments);
     return registry.callTool(sessionId, message.id, params, lifetime);
@@ -738,9 +874,15 @@ async function shutdown(code: number): Promise<void> {
     .catch(() => {});
   await closed;
   try {
+    skillStore?.close();
+  } catch {}
+  try {
     coreDb?.close();
   } catch {}
-  if (process.platform !== 'win32') await unlink(endpoint).catch(() => {});
+  if (process.platform !== 'win32') {
+    await unlink(endpoint).catch(() => {});
+    unixLease?.close();
+  }
   process.exit(code);
 }
 
@@ -748,7 +890,21 @@ process.on('SIGINT', () => void shutdown(0));
 process.on('SIGTERM', () => void shutdown(0));
 
 async function main(): Promise<void> {
-  if (process.platform !== 'win32') await unlink(endpoint).catch(() => {});
+  if (process.platform !== 'win32') {
+    if (!process.env.DWB_BROKER_PIPE) {
+      const directory = dirname(endpoint);
+      await mkdir(directory, { recursive: true, mode: 0o700 });
+      const info = await lstat(directory);
+      if (!info.isDirectory() || info.isSymbolicLink() || info.uid !== process.getuid?.())
+        throw new Error('The N3zuui broker socket directory is not owned by this user.');
+      await chmod(directory, 0o700);
+    }
+    unixLease = acquireUnixBrokerLease(endpoint);
+    if (!unixLease) process.exit(0);
+    await unlink(endpoint).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== 'ENOENT') throw error;
+    });
+  }
   await new Promise<void>((resolveListen, rejectListen) => {
     const onError = (error: NodeJS.ErrnoException) => {
       server.off('listening', onListening);
@@ -762,10 +918,12 @@ async function main(): Promise<void> {
     server.once('listening', onListening);
     server.listen(endpoint);
   });
+  if (process.platform !== 'win32') await chmod(endpoint, 0o600);
   // Claim the endpoint before opening SQLite: simultaneous cold starts must not
   // race journal/schema initialization or rewrite the live broker's state.
   coreDb = new CoreStore();
   workspaceStore = new WorkspaceStore(coreDb);
+  skillStore = new SkillStore();
   agentTasks = new AgentTaskStore(coreDb, workspaceStore);
   registry = new SessionRegistry(log, workspaceStore, undefined, agentTasks);
   externalMcpStore = new ExternalMcpStore();

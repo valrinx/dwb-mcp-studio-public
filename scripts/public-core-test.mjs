@@ -183,6 +183,7 @@ try {
       'dwb_resume_session',
       'dwb_agent',
       'dwb_task',
+      'skills',
       'workspace',
     ].sort(),
   );
@@ -545,6 +546,11 @@ try {
     stateBefore,
     'A losing broker startup must not rewrite the live broker state',
   );
+  assert.equal(
+    (await call(a, 'dwb_broker_status')).structuredContent.brokerPid,
+    brokerPid,
+    'A duplicate broker startup must not replace the live broker',
+  );
   const replies = await new Promise((resolveReplies, reject) => {
     const socket = createConnection(report.brokerEndpoint);
     const timer = setTimeout(() => {
@@ -615,7 +621,10 @@ try {
   const rpc = (method, params = {}, timeout = 5000) =>
     new Promise((done, reject) => {
       const id = 'wire-' + ++nextId;
-      const timer = setTimeout(() => reject(new Error('Wire request timed out: ' + method)), 8000);
+      const timer = setTimeout(
+        () => reject(new Error(`Wire request timed out: ${method} ${params.name ?? ''} (${id})`)),
+        8000,
+      );
       pending.set(id, (value) => {
         clearTimeout(timer);
         done(value);

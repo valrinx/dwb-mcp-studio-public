@@ -16,6 +16,7 @@ releases/
 config.local.json
 mcp-client.local.json
 external/
+*.app/
 # Local configuration if DWB_DATA_DIR is explicitly set to the project root.
 /config.json
 /mcp-client.json

@@ -5,6 +5,34 @@ export const NOT_A_CONTROL_TOOL = Symbol('dwb.notAControlTool');
 
 export const brokerTools = [
   {
+    name: 'skills',
+    description:
+      'Manage Agent Skills in N3zuui Studio. AUTO skills may be activated when useful; ASK skills require a separate user approval before instructions are returned; MANUAL skills require an explicit user request. Local installs are limited to the bound workspace. Remote GitHub or recommended installs require an explicit user request.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          description:
+            'Skill operation: list, catalog, install_local, install_github, install_recommended, set_default_policy, set_workspace_policy, clear_workspace_policy, activate, read_file.',
+        },
+        skill: { type: 'string' },
+        path: { type: 'string' },
+        github_url: { type: 'string' },
+        policy: { type: 'string' },
+        approval_id: { type: 'string' },
+        relative_path: { type: 'string' },
+        offset: { type: 'integer', minimum: 0 },
+        length: { type: 'integer', minimum: 4, maximum: 65536 },
+        explicit_user_request: { type: 'boolean' },
+        user_confirmed: { type: 'boolean' },
+      },
+      required: ['action'],
+      additionalProperties: false,
+    },
+    annotations: { destructiveHint: false, idempotentHint: false },
+  },
+  {
     name: 'dwb_external_mcp_list_tools',
     description:
       'List tools from enabled external MCP servers for hosts that cache their MCP tool registry. Returns server-prefixed names; set include_schema=true to inspect arguments before calling one.',
