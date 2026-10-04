@@ -99,18 +99,23 @@ try {
   $client=Get-Content -LiteralPath (Join-Path $env:DWB_DATA_DIR 'mcp-client.json') -Raw | ConvertFrom-Json
   Assert ($client.mcpServers.'n3zuui-core'.args[0].StartsWith($nextRoot)) 'Client launcher still points to old installation.'
   # Force final verification to fail after configure, and check byte-for-byte rollback.
+  $managedPolicy=Join-Path $env:DWB_DATA_DIR 'base-policy.json'
+  $upgraded.basePolicy=$managedPolicy
+  [IO.File]::WriteAllText($env:DWB_CONFIG_FILE,($upgraded | ConvertTo-Json),$Utf8)
+  $otherWorkspace=Join-Path $TestRoot 'another workspace'
+  $null=New-Item -ItemType Directory -Path $otherWorkspace
   $beforeFailure=@{}
-  foreach ($file in @($env:DWB_CONFIG_FILE,(Join-Path $env:DWB_DATA_DIR 'mcp-client.json'))) { $beforeFailure[$file]=(Get-FileHash -LiteralPath $file).Hash }
+  foreach ($file in @($env:DWB_CONFIG_FILE,(Join-Path $env:DWB_DATA_DIR 'mcp-client.json'),$managedPolicy)) { $beforeFailure[$file]=(Get-FileHash -LiteralPath $file).Hash }
   [IO.File]::WriteAllText((Join-Path $nextRoot 'scripts\doctor.mjs'),'console.log(JSON.stringify({ok:false}));',$Utf8)
   $failureDir=Join-Path $TestRoot 'failure'
   $null=New-Item -ItemType Directory -Path $failureDir
   $failureRequest=Join-Path $failureDir 'request.json'
-  [IO.File]::WriteAllText($failureRequest,(@{workspace=$Workspace;workerCap=7} | ConvertTo-Json),$Utf8)
+  [IO.File]::WriteAllText($failureRequest,(@{workspace=$otherWorkspace;workerCap=7} | ConvertTo-Json),$Utf8)
   $failureArguments='-NoProfile -ExecutionPolicy Bypass -File ' + (ConvertTo-DwbArgument (Join-Path $nextRoot 'scripts\setup-install.ps1')) + ' -RequestFile ' + (ConvertTo-DwbArgument $failureRequest)
   $failureProcess=Start-Process powershell.exe -ArgumentList $failureArguments -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput (Join-Path $failureDir 'stdout.log') -RedirectStandardError (Join-Path $failureDir 'stderr.log')
   Assert ($failureProcess.ExitCode -eq 1) 'Verification failure should fail setup.'
   foreach ($file in $beforeFailure.Keys) { Assert ((Get-FileHash -LiteralPath $file).Hash -eq $beforeFailure[$file]) 'Configuration rollback failed.' }
-  Write-Output 'UPGRADE_ROLLBACK_PASS: failed final verification restored both configuration files.'
+  Write-Output 'UPGRADE_ROLLBACK_PASS: failed final verification restored configuration and managed filesystem policy.'
   $dependencyAction=if($dependencyGraphUnchanged){'reused compatible dependencies'}else{'reinstalled dependencies after the lockfile changed'}
   Write-Output ("UPGRADE_GUI_PASS: $dependencyAction, old installation retained, saved key/tunnel/workspace/policy preserved, paths updated.")
   Write-Output 'SETUP_TEST_PASS: requirements, safe arguments, GUI save flow, production install, independent worker, generated config.'

@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { runtimeDir } from './paths.js';
+import { workerAllowedDirectories } from './workspace-policy.js';
 
 export async function prepareWorkerHome(
   sessionId: string,
@@ -20,7 +21,7 @@ export async function prepareWorkerHome(
   const config = {
     blockedCommands: source.blockedCommands,
     defaultShell: source.defaultShell,
-    allowedDirectories: source.allowedDirectories ?? [workspace],
+    allowedDirectories: workerAllowedDirectories(source, workspace),
     telemetryEnabled: false,
     fileWriteLineLimit: source.fileWriteLineLimit,
     fileReadLineLimit: source.fileReadLineLimit,

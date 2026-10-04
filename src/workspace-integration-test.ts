@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { writeTestBaseConfig } from './test-policy.js';
 
@@ -14,6 +14,10 @@ process.env.DWB_WORKSPACE_DB = resolve(root, 'workspaces.db');
 process.env.DWB_BROKER_STATE_PATH = resolve(root, 'state.json');
 process.env.DWB_EVENT_LOG_PATH = resolve(root, 'events.jsonl');
 process.env.DWB_BASE_DC_CONFIG = await writeTestBaseConfig(root);
+const policy = JSON.parse(await readFile(process.env.DWB_BASE_DC_CONFIG, 'utf8'));
+policy.allowedDirectories = [a];
+policy.n3zuuiWorkspacePolicy = { version: 1, mode: 'managed', root: a };
+await writeFile(process.env.DWB_BASE_DC_CONFIG, JSON.stringify(policy));
 process.env.DWB_WORKER_CAP = '2';
 process.env.DWB_BROKER_ALLOW_SHUTDOWN = 'true';
 delete process.env.DWB_BROKER_PIPE;
@@ -48,6 +52,18 @@ try {
   });
   assert.equal(await readFile(resolve(a, 'a.txt'), 'utf8'), 'first chat');
   assert.equal(await readFile(resolve(b, 'b.txt'), 'utf8'), 'second chat');
+  const restarted = await second.callTool('dwb_restart_worker', {});
+  assert.notEqual(restarted.isError, true, JSON.stringify(restarted));
+  const afterRestart = await second.callTool('write_file', {
+    path: resolve(b, 'after-restart.txt'),
+    content: 'bound permission survives restart',
+    mode: 'rewrite',
+  });
+  assert.notEqual(afterRestart.isError, true, JSON.stringify(afterRestart));
+  assert.equal(
+    await readFile(resolve(b, 'after-restart.txt'), 'utf8'),
+    'bound permission survives restart',
+  );
   const firstStatus = (await first.callTool('dwb_session_status', {})).structuredContent;
   const secondStatus = (await second.callTool('dwb_session_status', {})).structuredContent;
   assert.equal(firstStatus.workingDirectory, a);

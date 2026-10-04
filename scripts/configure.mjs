@@ -1,10 +1,11 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline/promises';
 import { parseArgs } from 'node:util';
 import { configPath, readConfig, validateConfig } from './config.mjs';
 import { defaultWorkerShell } from '../dist/paths.js';
+import { updateManagedWorkspacePolicy } from '../dist/workspace-policy.js';
 
 const { values } = parseArgs({
   options: {
@@ -35,15 +36,39 @@ try {
   await mkdir(root, { recursive: true });
   // A newly configured install starts with an explicit filesystem policy.
   const basePolicy = previous.basePolicy || resolve(root, 'base-policy.json');
-  const policy = {
+  let policy = {
     allowedDirectories: [config.workspace],
     defaultShell: defaultWorkerShell(),
     telemetryEnabled: false,
   };
   try {
-    await writeFile(basePolicy, JSON.stringify(policy, null, 2) + '\n', { flag: 'wx' });
+    policy = JSON.parse(await readFile(basePolicy, 'utf8'));
+    await validateConfig({ ...config, basePolicy });
   } catch (error) {
-    if (error.code !== 'EEXIST') throw error;
+    if (error.code !== 'ENOENT') throw error;
+  }
+  const pathKey = (path) =>
+    process.platform === 'win32' ? resolve(path).toLowerCase() : resolve(path);
+  const nextPolicy = updateManagedWorkspacePolicy(
+    policy,
+    config.workspace,
+    pathKey(basePolicy) === pathKey(resolve(root, 'base-policy.json')),
+  );
+  let currentText;
+  try {
+    currentText = await readFile(basePolicy, 'utf8');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  if (currentText === undefined || JSON.stringify(nextPolicy) !== JSON.stringify(policy)) {
+    const temp = `${basePolicy}.${process.pid}.${Date.now()}.tmp`;
+    try {
+      await writeFile(temp, JSON.stringify(nextPolicy, null, 2) + '\n', 'utf8');
+      await rename(temp, basePolicy);
+    } catch (error) {
+      await unlink(temp).catch(() => {});
+      throw error;
+    }
   }
   await validateConfig({ ...config, basePolicy });
   await writeFile(

@@ -120,7 +120,7 @@ export const brokerTools = [
   {
     name: 'workspace',
     description:
-      'When the user gives a working directory, immediately call action=bind with path=<absolute directory>. This registers or reuses that exact folder and binds it to this chat in one step, without asking the user to create a workspace separately. The worker starts in the bound directory; an idle worker is replaced on directory changes. Other chats keep their bindings. This does not expand filesystem policy. Do not infer the workspace from arbitrary file paths.',
+      'When the user gives a working directory, immediately call action=bind with path=<absolute directory>. This registers or reuses that exact folder and binds it to this chat in one step, without asking the user to create a workspace separately. The worker starts in the bound directory; an idle worker is replaced on directory changes. Setup-managed filesystem access follows the bound folder; explicit custom filesystem restrictions remain authoritative. Other chats keep their bindings. Do not infer the workspace from arbitrary file paths.',
     inputSchema: {
       type: 'object',
       properties: {

@@ -303,10 +303,10 @@
             เพื่อไม่ตัดงานกลางทาง
           </li>
           <li>
-            <strong>นอกโฟลเดอร์ที่อนุญาต:</strong> การเลือก workspace ไม่เพิ่มสิทธิ์ไฟล์ให้เอง หาก
-            Desktop Commander ปฏิเสธ ให้ตรวจ <code>allowedDirectories</code> ใน
-            <code>base-policy.json</code> ที่ Setup สร้าง
-            แล้วเพิ่มเฉพาะโฟลเดอร์ที่ต้องการอนุญาตและเริ่ม broker ใหม่
+            <strong>สิทธิ์ไฟล์:</strong> policy ที่ Setup จัดการจะตามโฟลเดอร์ที่ผูกกับแต่ละแชท ส่วน
+            policy ที่กำหนดเองหรือแก้ <code>allowedDirectories</code> เองจะคงข้อจำกัดเดิม
+            หากถูกปฏิเสธ ให้ตรวจ policy ก่อนอนุญาตโฟลเดอร์เพิ่มเติม การเปลี่ยนค่าเริ่มต้นใน Setup
+            ไม่เปลี่ยน workspace ของแชทอื่น
           </li>
           <li>
             <strong>ทำงานไฟล์ร่วมกัน:</strong> การแยก worker ไม่ได้แยกสำเนาไฟล์

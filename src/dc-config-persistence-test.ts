@@ -10,7 +10,8 @@ const baseConfigPath = join(root, 'base-dc-config.json');
 const config = {
   blockedCommands: ['shutdown'],
   defaultShell: 'powershell.exe',
-  allowedDirectories: [],
+  allowedDirectories: [root],
+  n3zuuiWorkspacePolicy: { version: 1, mode: 'managed', root },
   telemetryEnabled: false,
   fileWriteLineLimit: 50,
   fileReadLineLimit: 1000,
@@ -72,6 +73,16 @@ try {
     JSON.parse(await readFile(baseConfigPath, 'utf8')).fileReadLineLimit,
     777,
     'the accepted Desktop Commander setting must survive a worker restart',
+  );
+  const directories = await client.callTool('set_config_value', {
+    key: 'allowedDirectories',
+    value: [root],
+  });
+  assert.notEqual(directories.isError, true);
+  assert.equal(
+    JSON.parse(await readFile(baseConfigPath, 'utf8')).n3zuuiWorkspacePolicy.mode,
+    'custom',
+    'an explicit filesystem policy must not be expanded by subsequent workspace binding',
   );
 } finally {
   try {

@@ -52,7 +52,12 @@ try {
   Set-Phase 'runtime'
   . (Join-Path $PSScriptRoot 'runtime-upgrade.ps1')
   Stop-DwbRuntimeForSetup $machine.Node
-  foreach ($file in @((Get-DwbConfigPath), (Join-Path (Split-Path -Parent (Get-DwbConfigPath)) 'mcp-client.json'))) {
+  $policyPath=Join-Path (Split-Path -Parent (Get-DwbConfigPath)) 'base-policy.json'
+  if(Test-Path -LiteralPath (Get-DwbConfigPath)){
+    $savedPolicy=(Get-Content -LiteralPath (Get-DwbConfigPath) -Raw -Encoding UTF8 | ConvertFrom-Json).basePolicy
+    if($savedPolicy){$policyPath=[string]$savedPolicy}
+  }
+  foreach ($file in @((Get-DwbConfigPath), (Join-Path (Split-Path -Parent (Get-DwbConfigPath)) 'mcp-client.json'),$policyPath)) {
     if (Test-Path -LiteralPath $file) { $backups[$file]=[IO.File]::ReadAllBytes($file) } else { $backups[$file]=$null }
   }
   $saving=$true

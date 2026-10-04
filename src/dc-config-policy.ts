@@ -17,6 +17,7 @@ export async function persistBaseDcConfigValue(key: string, value: unknown): Pro
   const path = resolve(source);
   const current = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
   current[key] = value;
+  if (key === 'allowedDirectories') current.n3zuuiWorkspacePolicy = { version: 1, mode: 'custom' };
 
   const temp = `${path}.${process.pid}.${Date.now()}.tmp`;
   try {
