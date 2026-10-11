@@ -24,7 +24,7 @@ Agent Skills ช่วยให้ AI ใช้ขั้นตอนการท
 
 เปิด **Dashboard → Agent Skills** แล้วเลือกได้ 3 ทาง: **Recommended**, **GitHub** หรือ **โฟลเดอร์** ที่มี `SKILL.md`
 
-Recommended ปัจจุบันมี **GoLive** (ASK) สำหรับ assisted deployment และ **BRAG Slim** (MANUAL) สำหรับสร้าง launch video / poster / share copy จากโปรเจกต์หรือเว็บไซต์
+Recommended ปัจจุบันมี **GoLive** (ASK) สำหรับ assisted deployment, **BRAG Slim** (MANUAL) สำหรับสร้าง launch video / poster / share copy และ **REA · Reverse Engineer Anything** (ASK) สำหรับ workflows วิเคราะห์ native, managed, web, Android และ firmware โดย pin ไว้ที่ REA `6.4.0`
 
 ตัวอย่าง project-local Skill เดิมเลือกได้จาก:
 

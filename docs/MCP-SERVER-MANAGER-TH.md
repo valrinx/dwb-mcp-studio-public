@@ -2,11 +2,13 @@
 
 เปิด Dashboard แล้วเลือก **MCP Servers** เพื่อเพิ่ม server แบบ stdio, แก้ไขค่า, เปิด/ปิด, ดูสถานะ และลบออกได้ สถานะ Broker แสดงเป็นจุดกะทัดรัด; ชี้เมาส์เพื่ออ่านข้อความสถานะ การเปลี่ยนแปลงจะบันทึกไว้แม้ broker ยังไม่ทำงาน และจะมีผลเมื่อ MCP เชื่อมต่อครั้งถัดไป
 
-## ติดตั้งจาก reference catalog
+## ติดตั้งจาก MCP catalog
 
-หน้า **ติดตั้งจาก Catalog** ใช้ dropdown และปุ่ม **ติดตั้ง server** สำหรับ official reference servers ของ Model Context Protocol 4 รายการ: **Everything**, **Filesystem**, **Memory** และ **Sequential Thinking** โดยใช้ package/version แบบ pin ที่ตรวจสอบ identity ก่อนบันทึก; **Filesystem** ต้องเลือกโฟลเดอร์ที่อนุญาตก่อน ระบบจะติดตั้งลงในโฟลเดอร์เฉพาะของ N3zuui และเริ่มต้นเป็นสถานะปิดใช้งาน ผู้ใช้ต้องเลือก server เปิด **Enabled** แล้วกด **Save** เองก่อน MCP จะเริ่มเรียกใช้
+หน้า **ติดตั้งจาก Catalog** ใช้ dropdown และปุ่ม **Quick Install** สำหรับ MCP package ที่ pin เวอร์ชันและตรวจ identity ก่อนบันทึก: official reference servers ของ Model Context Protocol 4 รายการ (**Everything**, **Filesystem**, **Memory**, **Sequential Thinking**) และ community MCP **REA · Reverse Engineer Anything** (`rea-agents@6.4.0`). **Filesystem** ต้องเลือกโฟลเดอร์ที่อนุญาตก่อน ระบบจะติดตั้งลงในโฟลเดอร์เฉพาะของ N3zuui และเริ่มต้นเป็นสถานะปิดใช้งาน ผู้ใช้ต้องเลือก server เปิด **Enabled** แล้วกด **Save** เองก่อน MCP จะเริ่มเรียกใช้
 
-ปุ่ม official ชุดนี้ใช้ reference servers แบบ Node.js ที่ติดตั้งผ่าน npm ได้โดยตรง ส่วน official reference servers ที่เป็น Python (`Fetch`, `Git`, `Time`) ยังไม่แสดงเป็น Quick Install จนกว่าจะมี runtime/installer สำหรับ `uvx` และการตรวจสอบ package แยกต่างหาก
+REA ใช้คำสั่ง MCP transport ที่กำหนดไว้ (`mcp`) และสามารถวิเคราะห์ artifact ที่ผู้ใช้ระบุผ่าน tools ได้ บาง tool เปลี่ยน analysis metadata ใน engine ที่เชื่อมต่อ ส่วน Ghidra/Hopper และเครื่องมือเสริมอื่นไม่ได้ติดตั้งพร้อม MCP; การติดตั้ง REA อย่างเดียวไม่เปิดหรือวิเคราะห์โปรเจกต์ใด
+
+official reference servers ทั้งสี่รายการใช้แพ็กเกจ Node.js ที่ติดตั้งผ่าน npm ได้โดยตรง ส่วน official reference servers ที่เป็น Python (`Fetch`, `Git`, `Time`) ยังไม่แสดงเป็น Quick Install จนกว่าจะมี runtime/installer สำหรับ `uvx` และการตรวจสอบ package แยกต่างหาก
 
 Filesystem server ให้ tools สำหรับอ่าน เขียน สร้าง ย้าย และลบไฟล์ภายใต้โฟลเดอร์ที่ระบุ อย่างไรก็ตาม การเลือกโฟลเดอร์เป็นข้อจำกัดของตัว server ไม่ใช่ Windows security sandbox: MCP package ทำงานด้วยสิทธิ์บัญชี Windows ปัจจุบัน จึงควรติดตั้งเฉพาะ package ที่เชื่อถือได้ และพิจารณาผลของ tools ก่อนเปิดใช้งาน
 

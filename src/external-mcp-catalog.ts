@@ -5,6 +5,7 @@ export type ExternalMcpCatalogEntry = {
   packageName: string;
   version: string;
   entryPoint: string;
+  args?: readonly string[];
   allowedDirectoryArg: boolean;
   permissionSummary: string;
   official: boolean;
@@ -65,5 +66,20 @@ export const externalMcpCatalog: readonly ExternalMcpCatalogEntry[] = [
       'Provides a reasoning workflow tool; it does not read or write files by itself.',
     official: true,
     sourceUrl: 'https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking',
+  },
+  {
+    id: 'rea-agents',
+    name: 'REA · Reverse Engineer Anything',
+    description:
+      'Pinned REA MCP server for reverse-engineering workflows across native, managed, web, Android, and firmware targets.',
+    packageName: 'rea-agents',
+    version: '6.4.0',
+    entryPoint: 'scripts/rea.mjs',
+    args: ['mcp'],
+    allowedDirectoryArg: false,
+    permissionSummary:
+      'Can inspect local artifacts explicitly supplied to its tools. Some tools modify analysis metadata in connected engines; optional engines are not installed by N3zuui. Installing does not inspect any project.',
+    official: false,
+    sourceUrl: 'https://github.com/morluto/rea',
   },
 ];

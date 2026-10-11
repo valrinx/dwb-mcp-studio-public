@@ -3,7 +3,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { installGitHubSkill, RECOMMENDED_SKILLS, parseGitHubSkillUrl } from './skill-sources.js';
+import {
+  installGitHubSkill,
+  installRecommendedSkill,
+  RECOMMENDED_SKILLS,
+  parseGitHubSkillUrl,
+} from './skill-sources.js';
 import { SkillStore } from './skill-store.js';
 
 test('GitHub repository URL defaults to HEAD and auto-discovery', () => {
@@ -64,6 +69,91 @@ test('recommended catalog pins BRAG Slim to MANUAL and an immutable commit', () 
   assert.equal(brag.path, 'skills/brag-slim');
   assert.match(brag.ref, /^[0-9a-f]{40}$/);
   assert.equal(brag.version, '0.4.0');
+});
+
+test('recommended catalog offers the pinned REA skill with ASK approval', () => {
+  const rea = RECOMMENDED_SKILLS.find((item) => item.id === 'reverse-engineer-anything');
+  assert.ok(rea);
+  assert.equal(rea.repository, 'https://github.com/morluto/rea');
+  assert.equal(rea.ref, 'rea-agents-6.4.0');
+  assert.equal(rea.path, '.agents/skills/reverse-engineer-anything');
+  assert.equal(rea.version, '6.4.0');
+  assert.equal(rea.license, 'MIT');
+  assert.equal(rea.defaultPolicy, 'ask');
+});
+
+test('quick-installs the pinned REA skill package into the skill library', async () => {
+  const originalFetch = globalThis.fetch;
+  const temp = await mkdtemp(join(tmpdir(), 'dwb-skill-rea-quick-install-'));
+  const store = new SkillStore({
+    dbPath: join(temp, 'skills.db'),
+    libraryRoot: join(temp, 'skills'),
+  });
+  const skillText =
+    '---\nname: reverse-engineer-anything\ndescription: REA test skill.\n---\n\n# REA\n';
+  const files = new Map([
+    ['.agents', { path: '.agents', mode: '040000', type: 'tree', sha: 'agents-tree' }],
+    ['skills', { path: 'skills', mode: '040000', type: 'tree', sha: 'skills-tree' }],
+    [
+      'reverse-engineer-anything',
+      {
+        path: 'reverse-engineer-anything',
+        mode: '040000',
+        type: 'tree',
+        sha: 'rea-skill-tree',
+      },
+    ],
+  ]);
+  globalThis.fetch = (async (input) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    const json = (value: unknown) =>
+      new Response(JSON.stringify(value), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    if (url.endsWith('/commits/rea-agents-6.4.0'))
+      return json({ sha: 'rea-commit', commit: { tree: { sha: 'root-tree' } } });
+    if (url.endsWith('/git/trees/root-tree'))
+      return json({ sha: 'root-tree', tree: [files.get('.agents')] });
+    if (url.endsWith('/git/trees/agents-tree'))
+      return json({ sha: 'agents-tree', tree: [files.get('skills')] });
+    if (url.endsWith('/git/trees/skills-tree'))
+      return json({ sha: 'skills-tree', tree: [files.get('reverse-engineer-anything')] });
+    if (url.endsWith('/git/trees/rea-skill-tree?recursive=1'))
+      return json({
+        sha: 'rea-skill-tree',
+        tree: [
+          {
+            path: 'SKILL.md',
+            mode: '100644',
+            type: 'blob',
+            sha: 'rea-skill-file',
+            size: Buffer.byteLength(skillText),
+          },
+        ],
+      });
+    if (url.endsWith('/rea-commit/.agents/skills/reverse-engineer-anything/SKILL.md'))
+      return new Response(skillText, { status: 200 });
+    return new Response('not found', { status: 404 });
+  }) as typeof fetch;
+
+  try {
+    const installed = await installRecommendedSkill(store, 'reverse-engineer-anything');
+    assert.equal(installed.id, 'reverse-engineer-anything');
+    assert.equal(installed.defaultPolicy, 'ask');
+    assert.equal(
+      installed.sourceRef,
+      'https://github.com/morluto/rea/tree/rea-agents-6.4.0/.agents/skills/reverse-engineer-anything',
+    );
+    assert.equal(
+      store.list().some((skill: any) => skill.id === installed.id),
+      true,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    store.close();
+    await rm(temp, { recursive: true, force: true });
+  }
 });
 
 test('GitHub installer fetches only the selected skill directory', async () => {

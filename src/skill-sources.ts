@@ -51,6 +51,18 @@ export const RECOMMENDED_SKILLS: RecommendedSkill[] = [
     license: 'MIT',
     defaultPolicy: 'manual',
   },
+  {
+    id: 'reverse-engineer-anything',
+    name: 'REA · Reverse Engineer Anything',
+    description:
+      'แนวทางวิเคราะห์ native, managed, web, Android และ firmware ด้วยหลักฐานจากเครื่องมือที่เชื่อมต่อ',
+    repository: 'https://github.com/morluto/rea',
+    ref: 'rea-agents-6.4.0',
+    path: '.agents/skills/reverse-engineer-anything',
+    version: '6.4.0',
+    license: 'MIT',
+    defaultPolicy: 'ask',
+  },
 ];
 
 type ParsedGitHub = {

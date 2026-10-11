@@ -54,7 +54,7 @@ test('offline server management helper persists definitions without exposing env
   }
 });
 
-test('catalog action exposes the pinned official reference servers for the manager UI', async () => {
+test('catalog action exposes the pinned MCP quick-install packages for the manager UI', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dwb-external-mcp-catalog-'));
   try {
     const result = await invoke(
@@ -123,6 +123,21 @@ test('catalog action exposes the pinned official reference servers for the manag
         official: true,
         sourceUrl:
           'https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking',
+      },
+      {
+        id: 'rea-agents',
+        name: 'REA · Reverse Engineer Anything',
+        description:
+          'Pinned REA MCP server for reverse-engineering workflows across native, managed, web, Android, and firmware targets.',
+        packageName: 'rea-agents',
+        version: '6.4.0',
+        entryPoint: 'scripts/rea.mjs',
+        args: ['mcp'],
+        allowedDirectoryArg: false,
+        permissionSummary:
+          'Can inspect local artifacts explicitly supplied to its tools. Some tools modify analysis metadata in connected engines; optional engines are not installed by N3zuui. Installing does not inspect any project.',
+        official: false,
+        sourceUrl: 'https://github.com/morluto/rea',
       },
     ]);
   } finally {

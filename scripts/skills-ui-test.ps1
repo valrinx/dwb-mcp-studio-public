@@ -42,9 +42,12 @@ Follow the UI test.
   $script:confirmRemoval=$false
   $actions={param($window)
     if($window.FindName('SkillList').Items.Count -ne 0){throw 'Expected empty library'}
-    if(-not $window.FindName('InstallRecommended') -or -not $window.FindName('InstallBrag') -or -not $window.FindName('InstallGithub')){throw 'Remote install controls missing'}
+    if(-not $window.FindName('InstallRecommended') -or -not $window.FindName('InstallBrag') -or -not $window.FindName('InstallRea') -or -not $window.FindName('InstallGithub')){throw 'Remote install controls missing'}
     if(-not $window.FindName('InstallRecommended').IsEnabled){throw 'Recommended GoLive should be installable in empty library'}
     if(-not $window.FindName('InstallBrag').IsEnabled){throw 'Recommended BRAG Slim should be installable in empty library'}
+    if(-not $window.FindName('InstallRea').IsEnabled){throw 'Recommended REA skill should be installable in empty library'}
+    Click $window 'InstallRea'
+    if($global:DwbRequestedSkill -ne 'reverse-engineer-anything'){throw 'REA quick install did not request the REA skill ID'}
     Click $window 'Install'
     $snapshot=Snapshot
     if($snapshot.skills.Count -ne 1 -or $snapshot.skills[0].id -ne 'ui-skill'){throw 'Install did not persist'}
@@ -79,7 +82,9 @@ Follow the UI test.
     Click $window 'Uninstall'
     if((Snapshot).skills.Count -ne 1){throw 'Cancel uninstall removed the skill'}
   }
-  Show-DwbSkills $report $actions { $source } { $script:confirmRemoval }
+  $global:DwbRequestedSkill=$null
+  $installRecommended={param($id) $global:DwbRequestedSkill=$id}
+  Show-DwbSkills $report $actions { $source } { $script:confirmRemoval } $installRecommended
   if([IO.File]::ReadAllText($report) -ne 'PASS'){throw ('Skills UI failed: '+[IO.File]::ReadAllText($report))}
   $reopen={param($window)
     if($window.FindName('SkillList').Items.Count -ne 1){throw 'Reopened library lost the skill'}
@@ -95,6 +100,7 @@ Follow the UI test.
   Write-Output 'SKILLS_UI_PASS: install, default/override/isolation, approve/reject, cancel removal, reopen and uninstall persisted correctly.'
 }finally{
   $global:DwbShell=$null
+  $global:DwbRequestedSkill=$null
   $tempRoot=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')+'\'
   if(-not $testRoot.StartsWith($tempRoot,[StringComparison]::OrdinalIgnoreCase) -or [IO.Path]::GetFileName($testRoot) -notlike 'dwb-skills-ui-*'){throw 'Refusing cleanup outside the test directory'}
   try{if(Test-Path -LiteralPath $testRoot){Remove-Item -LiteralPath $testRoot -Recurse -Force}}

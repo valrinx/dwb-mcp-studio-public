@@ -507,7 +507,7 @@ export class ExternalMcpInstaller {
       id: entry.id,
       name: entry.name,
       command: process.execPath,
-      args: [entryPoint, ...(allowedDirectory ? [allowedDirectory] : [])],
+      args: [entryPoint, ...(entry.args ?? []), ...(allowedDirectory ? [allowedDirectory] : [])],
       ...(allowedDirectory ? { cwd: allowedDirectory } : {}),
       env: {},
       enabled: false,

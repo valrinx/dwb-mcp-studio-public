@@ -12,7 +12,7 @@ try {
   // The RED assertion identifies the missing staged installer.
 }
 
-test('lists the official MCP reference servers in the package catalog', () => {
+test('lists the pinned MCP quick-install packages and their launch arguments', () => {
   assert.ok(
     installerModule?.ExternalMcpInstaller,
     'ExternalMcpInstaller export is not implemented',
@@ -25,25 +25,76 @@ test('lists the official MCP reference servers in the package catalog', () => {
       entry.packageName,
       entry.version,
       entry.allowedDirectoryArg,
+      entry.args ?? [],
     ]),
     [
-      ['everything', '@modelcontextprotocol/server-everything', '2026.8.31', false],
-      ['filesystem', '@modelcontextprotocol/server-filesystem', '2026.8.31', true],
-      ['memory', '@modelcontextprotocol/server-memory', '2026.8.31', false],
+      ['everything', '@modelcontextprotocol/server-everything', '2026.8.31', false, []],
+      ['filesystem', '@modelcontextprotocol/server-filesystem', '2026.8.31', true, []],
+      ['memory', '@modelcontextprotocol/server-memory', '2026.8.31', false, []],
       [
         'sequential-thinking',
         '@modelcontextprotocol/server-sequential-thinking',
         '2026.8.31',
         false,
+        [],
       ],
+      ['rea-agents', 'rea-agents', '6.4.0', false, ['mcp']],
     ],
   );
-  assert.ok(catalog.every((entry: any) => entry.official === true));
   assert.ok(
-    catalog.every((entry: any) =>
-      entry.sourceUrl.includes('github.com/modelcontextprotocol/servers'),
-    ),
+    catalog
+      .filter((entry: any) => entry.id !== 'rea-agents')
+      .every((entry: any) => entry.official === true),
   );
+  assert.ok(
+    catalog
+      .filter((entry: any) => entry.id !== 'rea-agents')
+      .every((entry: any) => entry.sourceUrl.includes('github.com/modelcontextprotocol/servers')),
+  );
+  const rea = catalog.find((entry: any) => entry.id === 'rea-agents');
+  assert.equal(rea.official, false);
+  assert.equal(rea.sourceUrl, 'https://github.com/morluto/rea');
+});
+
+test('installs REA from its pinned package and launches its MCP transport', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'dwb-external-mcp-rea-'));
+  const expectedPackage = 'rea-agents';
+  const expectedVersion = '6.4.0';
+  const installer = new installerModule.ExternalMcpInstaller({
+    rootDir: root,
+    installPackage: async (stage: string, packageName: string, version: string) => {
+      assert.equal(packageName, expectedPackage);
+      assert.equal(version, expectedVersion);
+      const packageRoot = join(stage, 'node_modules', packageName);
+      mkdirSync(join(packageRoot, 'scripts'), { recursive: true });
+      writeFileSync(
+        join(packageRoot, 'package.json'),
+        JSON.stringify({ name: packageName, version, bin: { rea: 'scripts/rea.mjs' } }),
+      );
+      writeFileSync(join(packageRoot, 'scripts', 'rea.mjs'), 'process.exit(0);');
+    },
+  });
+
+  try {
+    const installed = await installer.install('rea-agents');
+    const expectedEntry = join(
+      root,
+      'mcp-servers',
+      'installations',
+      'rea-agents',
+      '6.4.0',
+      'node_modules',
+      'rea-agents',
+      'scripts',
+      'rea.mjs',
+    );
+    assert.equal(installed.name, 'REA · Reverse Engineer Anything');
+    assert.equal(installed.packageVersion, '6.4.0');
+    assert.deepEqual(installed.args, [expectedEntry, 'mcp']);
+    assert.equal(installed.enabled, false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('stages a catalog package, verifies its identity, and activates it disabled', async () => {

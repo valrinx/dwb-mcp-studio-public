@@ -40,6 +40,7 @@
     <Button x:Name="Refresh" Content="รีเฟรช"/>
     <Button x:Name="InstallRecommended" Content="★ GoLive" Background="#173F46" BorderBrush="#2D7278"/>
     <Button x:Name="InstallBrag" Content="★ BRAG Slim" Background="#173F46" BorderBrush="#2D7278"/>
+    <Button x:Name="InstallRea" Content="★ REA" Background="#173F46" BorderBrush="#2D7278"/>
     <Button x:Name="InstallGithub" Content="+ GitHub"/>
     <Button x:Name="Install" Content="+ โฟลเดอร์" Background="#08B8D2" Foreground="#06252E" BorderBrush="#08B8D2"/>
    </StackPanel>
@@ -231,6 +232,13 @@
       $dialog.FindName('InstallBrag').IsEnabled=-not $bragCurrent
       $dialog.FindName('InstallBrag').Content=$(if(-not $installedBrag){'★ BRAG Slim'}elseif($bragCurrent){'✓ BRAG Slim'}else{'↻ BRAG Slim'})
       $dialog.FindName('InstallBrag').ToolTip=$(if($bragCatalog){'BRAG Slim '+$bragCatalog.version+' · '+$bragCatalog.description}else{'Recommended Skill'})
+      $installedRea=$items | Where-Object Id -eq 'reverse-engineer-anything' | Select-Object -First 1
+      $reaCatalog=$catalog | Where-Object id -eq 'reverse-engineer-anything' | Select-Object -First 1
+      $reaSource=if($reaCatalog){$reaCatalog.repository+'/tree/'+$reaCatalog.ref+'/'+$reaCatalog.path}else{''}
+      $reaCurrent=[bool]($installedRea -and $installedRea.SourceType -eq 'github' -and $installedRea.SourceRef -eq $reaSource)
+      $dialog.FindName('InstallRea').IsEnabled=-not $reaCurrent
+      $dialog.FindName('InstallRea').Content=$(if(-not $installedRea){'★ REA'}elseif($reaCurrent){'✓ REA'}else{'↻ REA'})
+      $dialog.FindName('InstallRea').ToolTip=$(if($reaCatalog){'REA '+$reaCatalog.version+' · ติดตั้งด้วย policy ASK · '+$reaCatalog.description}else{'Recommended REA Skill'})
       $dialog.FindName('SkillList').SelectedItem=$items | Where-Object Id -eq $selectedSkill | Select-Object -First 1
       if(-not $dialog.FindName('SkillList').SelectedItem -and $items.Count){$dialog.FindName('SkillList').SelectedIndex=0}
       $workspaceNames=@{};foreach($w in $snapshot.workspaces){$workspaceNames[$w.id]=$w.name}
@@ -257,6 +265,13 @@
     try{
       if($InstallRecommended){& $InstallRecommended 'brag-slim';Refresh-Skills;return}
       $null=Invoke-SkillsAdmin @('install-recommended','brag-slim')
+      Refresh-Skills
+    }catch{$dialog.FindName('Error').Text=$_.Exception.Message}
+  })
+  $dialog.FindName('InstallRea').Add_Click({
+    try{
+      if($InstallRecommended){& $InstallRecommended 'reverse-engineer-anything';Refresh-Skills;return}
+      $null=Invoke-SkillsAdmin @('install-recommended','reverse-engineer-anything')
       Refresh-Skills
     }catch{$dialog.FindName('Error').Text=$_.Exception.Message}
   })

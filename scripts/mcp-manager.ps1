@@ -120,8 +120,8 @@ function Refresh-Servers{
 function Update-CatalogInfo{
   $entry=(Find 'Catalog').SelectedItem
   if(-not $entry){(Find 'CatalogInfo').Text='ยังไม่มี package ใน Catalog';return}
-  $officialLabel=if($entry.official){'OFFICIAL · '}else{''}
-  (Find 'CatalogInfo').Text=$officialLabel+$entry.description+' '+$entry.permissionSummary
+  $sourceLabel=if($entry.official){'OFFICIAL · '}else{'COMMUNITY · '}
+  (Find 'CatalogInfo').Text=$sourceLabel+$entry.description+' '+$entry.permissionSummary
   (Find 'CatalogInfo').ToolTip=if($entry.sourceUrl){'แหล่งอ้างอิง: '+$entry.sourceUrl}else{$null}
   (Find 'AllowedDirectory').IsEnabled=[bool]$entry.allowedDirectoryArg
   (Find 'ChooseDirectory').IsEnabled=[bool]$entry.allowedDirectoryArg
@@ -203,7 +203,7 @@ function Copy-AppCatalogEndpoint{
 function Install-CatalogEntry([string]$CatalogId){
   try{
     $entry=@($script:Catalog | Where-Object {$_.id -eq $CatalogId}) | Select-Object -First 1
-    if(-not $entry){throw 'The selected official MCP package is not available.'}
+    if(-not $entry){throw 'The selected MCP catalog package is not available.'}
     $directory=([string](Find 'AllowedDirectory').Text).Trim()
     if($entry.allowedDirectoryArg){
       if(-not $directory){throw 'Choose an allowed directory before installing Filesystem.'}
@@ -368,9 +368,13 @@ if($UiTest){
   }
   if(Find 'BrokerState'){throw 'The MCP broker status should be displayed as a dot, not a text label.'}
   $managerProbe=Invoke-McpManager 'catalog' @{}
-  $expectedQuickInstallIds=@('everything','filesystem','memory','sequential-thinking')
+  $expectedQuickInstallIds=@('everything','filesystem','memory','sequential-thinking','rea-agents')
   $actualQuickInstallIds=@($managerProbe.catalog | ForEach-Object {[string]$_.id})
-  if(@($managerProbe.catalog).Count -ne $expectedQuickInstallIds.Count -or ($actualQuickInstallIds -join '|') -cne ($expectedQuickInstallIds -join '|')){throw 'MCP Manager could not exchange the reference server catalog with its Node helper.'}
+  if(@($managerProbe.catalog).Count -ne $expectedQuickInstallIds.Count -or ($actualQuickInstallIds -join '|') -cne ($expectedQuickInstallIds -join '|')){throw 'MCP Manager could not exchange the pinned MCP quick-install catalog with its Node helper.'}
+  (Find 'Catalog').ItemsSource=@($managerProbe.catalog)
+  (Find 'Catalog').SelectedIndex=4;Update-CatalogInfo
+  if((Find 'CatalogInfo').Text -notlike 'COMMUNITY ·*'){throw 'REA must be identified as a community MCP, not as an official reference server.'}
+  if((Find 'InstallCatalog').Content -ne 'Quick Install  →'){throw 'MCP catalog action is not identified as Quick Install.'}
   foreach($quickName in @('QuickInstallEverything','QuickInstallFilesystem','QuickInstallMemory','QuickInstallSequentialThinking')){if(Find $quickName){throw "Legacy reference Quick Install control remains: $quickName"}}
   $appProbe=Invoke-McpManager 'apps-catalog' @{}
   $expectedAppIds=@('figma','github','linear','atlassian','supabase','vercel','cloudflare','canva','capcut')
@@ -509,6 +513,6 @@ if($UiTest){
   if($footerBottom -gt $scroll.ViewportHeight){throw 'The MCP manager footer is not reachable by scrolling on a short display.'}
   Fit-McpManagerWindow ([Windows.Rect]::new(0,0,900,600))
   if($window.Width -gt 900 -or $window.Height -gt 600 -or $window.MinWidth -gt 900 -or $window.MinHeight -gt 600){throw 'The MCP manager window does not fit within the available display area.'}
-  if($UiTestReport){[IO.File]::WriteAllText($UiTestReport,'PASS: MCP Manager UI behavior: servers=3; enabled=2; running=1; issues=1; UTF-8 helper round-trip=verified; reference catalog=4; app quick install=remote+local; app integrations=9; package selector=custom; broker status=dot-only; empty=visible; scroll=available; GitHub feedback=visible; progress=shown; window=fitted; layout=nonoverlapping')}
+  if($UiTestReport){[IO.File]::WriteAllText($UiTestReport,'PASS: MCP Manager UI behavior: servers=3; enabled=2; running=1; issues=1; UTF-8 helper round-trip=verified; MCP catalog=5; app quick install=remote+local; app integrations=9; package selector=custom; broker status=dot-only; empty=visible; scroll=available; GitHub feedback=visible; progress=shown; window=fitted; layout=nonoverlapping')}
   $window.Close()
 }else{$null=$window.ShowDialog()}
