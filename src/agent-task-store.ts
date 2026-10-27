@@ -67,6 +67,9 @@ export type TaskView = {
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
+  coordinatorAgentId: string | null;
+  dispatchAttempts: number;
+  lastDispatchError: string | null;
 };
 
 export type TaskEventView = {
@@ -220,6 +223,9 @@ export class AgentTaskStore {
       "ALTER TABLE workspace_tasks ADD COLUMN required_capabilities_json TEXT NOT NULL DEFAULT '[]'",
       'ALTER TABLE workspace_tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE workspace_tasks ADD COLUMN handoff_json TEXT',
+      'ALTER TABLE workspace_tasks ADD COLUMN coordinator_agent_id TEXT',
+      'ALTER TABLE workspace_tasks ADD COLUMN dispatch_attempts INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE workspace_tasks ADD COLUMN last_dispatch_error TEXT',
     ]) {
       try {
         this.db.run(column);
@@ -306,6 +312,10 @@ export class AgentTaskStore {
       createdAt: String(row.created_at),
       updatedAt: String(row.updated_at),
       completedAt: row.completed_at == null ? null : String(row.completed_at),
+      coordinatorAgentId:
+        row.coordinator_agent_id == null ? null : String(row.coordinator_agent_id),
+      dispatchAttempts: Number(row.dispatch_attempts ?? 0),
+      lastDispatchError: row.last_dispatch_error == null ? null : String(row.last_dispatch_error),
     };
   }
 
@@ -431,10 +441,12 @@ export class AgentTaskStore {
         );
       }
       if (!existing) {
-        // beta.14 rows may predate context_key. Reclaim only an unambiguous
-        // paused identity so a reconnect can upgrade that row without making
-        // two agents for the same named role. Ambiguous legacy rows stay
-        // separate and require an explicit stable context on a later register.
+        // beta.14 rows may predate context_key. Reclaim the most recently
+        // updated paused identity for this name+role: the old exactly-one
+        // guard meant that once two duplicates existed, no reconnect could
+        // reclaim either one, so every reconnect minted another duplicate
+        // and the ambiguity only grew. Most-recent wins converges back to
+        // a single identity because each reclaim refreshes updated_at.
         const legacyCandidates = role
           ? this.db.query<any>(
               "SELECT * FROM workspace_agents WHERE workspace_id=? AND context_key IS NULL AND status='paused' AND lower(name)=lower(?) AND lower(role)=lower(?) ORDER BY updated_at DESC,created_at,id",
@@ -444,7 +456,7 @@ export class AgentTaskStore {
               "SELECT * FROM workspace_agents WHERE workspace_id=? AND context_key IS NULL AND status='paused' AND lower(name)=lower(?) AND role IS NULL ORDER BY updated_at DESC,created_at,id",
               [workspaceId, name],
             );
-        if (legacyCandidates.length === 1) existing = legacyCandidates[0];
+        if (legacyCandidates.length >= 1) existing = legacyCandidates[0];
       }
       if (existing) {
         const occupied = this.db.one<any>(
@@ -474,6 +486,45 @@ export class AgentTaskStore {
             existing.id,
           ],
         );
+        // Heal orphaned inbox messages: other paused agents with the same
+        // name+role in this workspace are duplicates of the reclaimed
+        // identity. Their unacknowledged messages would otherwise stay
+        // addressed to an id nobody reads again, which is exactly how a
+        // finished handoff looks "never received". Move them to the
+        // reclaimed agent, skipping any that would collide with a message
+        // it already has (the messages table is unique on
+        // source/target/recipient/kind).
+        const duplicateRows = this.db.query<any>(
+          "SELECT * FROM workspace_agents WHERE workspace_id=? AND id<>? AND status='paused'",
+          [workspaceId, existing.id],
+        );
+        for (const duplicate of duplicateRows) {
+          if (String(duplicate.name).toLocaleLowerCase() !== name.toLocaleLowerCase()) continue;
+          const duplicateRole =
+            duplicate.role == null ? null : String(duplicate.role).toLocaleLowerCase();
+          const wantedRole = role == null ? null : role.toLocaleLowerCase();
+          if (duplicateRole !== wantedRole) continue;
+          const orphaned = this.db.query<any>(
+            "SELECT * FROM workspace_agent_messages WHERE to_agent_id=? AND status IN ('pending','delivered')",
+            [String(duplicate.id)],
+          );
+          for (const orphan of orphaned) {
+            const collision = this.db.one<any>(
+              'SELECT id FROM workspace_agent_messages WHERE source_task_id=? AND target_task_id=? AND to_agent_id=? AND kind=?',
+              [
+                String(orphan.source_task_id),
+                String(orphan.target_task_id),
+                existing.id,
+                String(orphan.kind),
+              ],
+            );
+            if (collision) continue;
+            this.db.run('UPDATE workspace_agent_messages SET to_agent_id=? WHERE id=?', [
+              existing.id,
+              String(orphan.id),
+            ]);
+          }
+        }
         return this.agentView(this.agentRow(String(existing.id)));
       }
       const id = `agent_${randomUUID().slice(0, 8)}`;
@@ -944,6 +995,10 @@ export class AgentTaskStore {
       const assigned = this.claimTask(taskId, String(candidate.id));
       if (assigned.assignedAgentId !== requesterAgentId)
         this.createTaskAssignmentMessage(assigned, requesterAgentId ?? null);
+      this.db.run(
+        'UPDATE workspace_tasks SET coordinator_agent_id=COALESCE(coordinator_agent_id,?),last_dispatch_error=NULL WHERE id=?',
+        [requesterAgentId ?? null, taskId],
+      );
       return assigned;
     }
     if (requestedTarget)
@@ -967,12 +1022,21 @@ export class AgentTaskStore {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (
-          !message.startsWith('DWB_TASK_NO_AGENT:') &&
-          !message.startsWith('DWB_TASK_TARGET_NOT_AVAILABLE:') &&
-          !message.startsWith('DWB_TASK_SCOPE_CONFLICT:') &&
-          !message.startsWith('Task dependency is not complete:')
-        )
-          throw error;
+          message.startsWith('DWB_TASK_NO_AGENT:') ||
+          message.startsWith('DWB_TASK_TARGET_NOT_AVAILABLE:') ||
+          message.startsWith('DWB_TASK_SCOPE_CONFLICT:') ||
+          message.startsWith('Task dependency is not complete:')
+        ) {
+          // Record the stall instead of skipping silently: previously a
+          // task whose agent was paused stayed queued forever and nobody
+          // learned why. The error now surfaces in listTasks and summary.
+          this.db.run(
+            'UPDATE workspace_tasks SET dispatch_attempts=COALESCE(dispatch_attempts,0)+1,last_dispatch_error=?,updated_at=? WHERE id=?',
+            [message, new Date().toISOString(), String(task.id)],
+          );
+          continue;
+        }
+        throw error;
       }
     }
     return dispatched;
@@ -1065,6 +1129,43 @@ export class AgentTaskStore {
       if (result !== undefined) details.result = result;
       if (handoff !== null) details.handoff = handoff;
       this.taskEvent(row, 'doing', 'done', agentId, details);
+      // Notify the coordinator: previously a completion only changed the
+      // task row, so a coordinator watching its inbox never learned the
+      // task finished (a handoff message was only created for dependent
+      // doing-tasks). The coordinator is whoever dispatched the task.
+      const coordinatorId =
+        row.coordinator_agent_id == null ? null : String(row.coordinator_agent_id);
+      if (coordinatorId && coordinatorId !== agentId) {
+        const existingNotice = this.db.one<any>(
+          'SELECT * FROM workspace_agent_messages WHERE source_task_id=? AND target_task_id=? AND to_agent_id=? AND kind=?',
+          [taskId, taskId, coordinatorId, 'task_handoff'],
+        );
+        if (!existingNotice) {
+          const noticeId = `msg_${randomUUID().slice(0, 8)}`;
+          this.db.run(
+            'INSERT INTO workspace_agent_messages(id,workspace_id,source_task_id,target_task_id,from_agent_id,to_agent_id,kind,payload_json,status,created_at,delivered_at,acknowledged_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+            [
+              noticeId,
+              String(row.workspace_id),
+              taskId,
+              taskId,
+              agentId,
+              coordinatorId,
+              'task_handoff',
+              JSON.stringify({
+                sourceTaskId: taskId,
+                targetTaskId: taskId,
+                handoff,
+                result: result === undefined ? null : result,
+              }),
+              'pending',
+              now,
+              null,
+              null,
+            ],
+          );
+        }
+      }
       return this.taskView(this.taskRow(taskId));
     });
   }
@@ -1258,6 +1359,9 @@ export class AgentTaskStore {
       activeAgents: agents.filter((agent) => agent.status === 'active').length,
       tasks: tasks.length,
       queuedTasks: tasks.filter((task) => task.status === 'queued').length,
+      stalledTasks: tasks.filter(
+        (task) => task.status === 'queued' && task.lastDispatchError != null,
+      ).length,
       doingTasks: tasks.filter((task) => task.status === 'doing').length,
       doneTasks: tasks.filter((task) => task.status === 'done').length,
       blockedTasks: tasks.filter((task) => task.status === 'blocked').length,

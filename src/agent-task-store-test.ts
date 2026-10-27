@@ -803,3 +803,139 @@ test('agents can exchange durable direct messages and acknowledgements', async (
     db.close();
   }
 });
+
+test('dispatch failure is recorded instead of stalling silently', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const main = tasks.registerAgent('session-main', workspace.id, {
+      name: 'ChatGPT Main',
+      role: 'main',
+    });
+    const coder = tasks.registerAgent('session-coder', workspace.id, {
+      name: 'Muse Coder',
+      role: 'coder',
+      capabilities: ['python'],
+    });
+    const task = tasks.createTask(workspace.id, {
+      title: 'Stalled work',
+      targetAgentId: coder.id,
+      requiredRole: 'coder',
+      requiredCapabilities: ['python'],
+    });
+    tasks.pauseAgent(coder.id);
+    assert.equal(tasks.dispatchQueuedTasks(), 0);
+    const stalled = tasks.getTask(task.id);
+    assert.equal(stalled?.status, 'queued');
+    assert.ok((stalled?.dispatchAttempts ?? 0) >= 1);
+    assert.match(stalled?.lastDispatchError ?? '', /TARGET_NOT_AVAILABLE/);
+    assert.equal(tasks.summary(workspace.id).stalledTasks, 1);
+    // Once the coder is back, the same queued task dispatches and the
+    // stall marker clears.
+    tasks.heartbeatAgent('session-coder', workspace.id);
+    assert.equal(tasks.dispatchQueuedTasks(), 1);
+    const dispatched = tasks.getTask(task.id);
+    assert.equal(dispatched?.status, 'doing');
+    assert.equal(dispatched?.assignedAgentId, coder.id);
+    assert.equal(dispatched?.lastDispatchError, null);
+    assert.equal(main.id.length > 0, true);
+  } finally {
+    db.close();
+  }
+});
+
+test('duplicate main identities converge on reclaim and orphan messages move', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const first = tasks.registerAgent('session-a', workspace.id, {
+      name: 'ChatGPT Main',
+      role: 'main',
+    });
+    // Second registration while the first is still active: no paused
+    // candidate exists, so a duplicate identity is created (this is how
+    // the live duplicates arose).
+    const second = tasks.registerAgent('session-b', workspace.id, {
+      name: 'ChatGPT Main',
+      role: 'main',
+    });
+    assert.notEqual(second.id, first.id);
+    const coder = tasks.registerAgent('session-coder', workspace.id, {
+      name: 'Muse Coder',
+      role: 'coder',
+    });
+    const message = tasks.sendAgentMessage(workspace.id, coder.id, first.id, {
+      hello: 'handoff',
+    });
+    tasks.pauseAgent(first.id);
+    tasks.pauseAgent(second.id);
+    const reclaimed = tasks.registerAgent('session-c', workspace.id, {
+      name: 'ChatGPT Main',
+      role: 'main',
+    });
+    // No third identity is minted, and the orphaned message follows the
+    // reclaimed identity instead of staying addressed to a dead id.
+    assert.ok(reclaimed.id === first.id || reclaimed.id === second.id);
+    assert.equal(tasks.listAgents(workspace.id).length, 3);
+    const inbox = tasks.listAgentMessages(workspace.id, reclaimed.id);
+    assert.ok(inbox.some((item) => item.id === message.id));
+  } finally {
+    db.close();
+  }
+});
+
+test('completing a dispatched task notifies the coordinator', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const main = tasks.registerAgent('session-main', workspace.id, {
+      name: 'ChatGPT Main',
+      role: 'main',
+    });
+    const coder = tasks.registerAgent('session-coder', workspace.id, {
+      name: 'Muse Coder',
+      role: 'coder',
+      capabilities: ['python'],
+    });
+    const task = tasks.createTask(workspace.id, {
+      title: 'Do the work',
+      requiredRole: 'coder',
+      requiredCapabilities: ['python'],
+      fileScopes: [],
+    });
+    const dispatched = tasks.dispatchTask(task.id, main.id, coder.id);
+    assert.equal(dispatched.status, 'doing');
+    assert.equal(tasks.getTask(task.id)?.coordinatorAgentId, main.id);
+    const done = tasks.completeTask(
+      task.id,
+      coder.id,
+      { ok: true },
+      {
+        summary: 'finished',
+        changedFiles: [],
+        testResult: null,
+      },
+    );
+    assert.equal(done.status, 'done');
+    const inbox = tasks.listAgentMessages(workspace.id, main.id);
+    const notice = inbox.find(
+      (item) => item.kind === 'task_handoff' && item.sourceTaskId === task.id,
+    );
+    assert.ok(notice, 'coordinator should receive a task_handoff message');
+    assert.equal(notice?.status, 'pending');
+  } finally {
+    db.close();
+  }
+});
