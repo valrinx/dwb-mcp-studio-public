@@ -253,6 +253,9 @@ export class SessionRegistry {
         if (restored.cleanupTimer) clearTimeout(restored.cleanupTimer);
         restored.cleanupTimer = null;
         restored.state = 'attached';
+        // A recovered logical child can reconnect through its own adapter.
+        // It now owns a transport family independently of its former siblings.
+        restored.transportSessionId = restored.id;
         restored.adapterPid = adapterPid;
         restored.detachedAt = null;
         restored.lastActivityAt = new Date().toISOString();

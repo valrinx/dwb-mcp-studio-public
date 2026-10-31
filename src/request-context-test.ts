@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { test } from 'node:test';
 import { contextDiagnostic, resolveLogicalRequestContext } from './request-context.js';
 
 const a = resolveLogicalRequestContext({
@@ -54,3 +55,39 @@ assert.equal(
 );
 assert.ok(diag.keys.includes('meta.custom.foo'));
 console.log('REQUEST_CONTEXT_PASS', JSON.stringify({ a: a.preview, b: b.preview }));
+
+test('agents in one conversation have separate stable request contexts', () => {
+  const meta = { 'openai/session': 'conversation-shared-123456' };
+  const first = resolveLogicalRequestContext({ ...meta, agent_id: 'agent-coder-123456' });
+  const second = resolveLogicalRequestContext({ ...meta, agent_id: 'agent-reviewer-123456' });
+  assert.ok(first);
+  assert.ok(second);
+  assert.notEqual(first.key, second.key);
+  assert.notEqual(first.key, resolveLogicalRequestContext(meta)?.key);
+  assert.equal(
+    first.key,
+    resolveLogicalRequestContext({
+      ...meta,
+      agent_id: 'agent-coder-123456',
+      request_id: 'new-request-123456',
+      run_id: 'new-run-123456',
+    })?.key,
+  );
+  assert.ok(!first.key.includes('agent-coder'));
+});
+
+test('thread identity separates agents sharing the OpenAI session', () => {
+  const meta = { 'openai/session': 'conversation-shared-123456' };
+  const first = resolveLogicalRequestContext(meta, { thread_id: 'thread-coder-123456' });
+  const second = resolveLogicalRequestContext(meta, { thread_id: 'thread-reviewer-123456' });
+  assert.ok(first);
+  assert.ok(second);
+  assert.notEqual(first.key, second.key);
+  assert.equal(
+    first.key,
+    resolveLogicalRequestContext(meta, {
+      thread_id: 'thread-coder-123456',
+      run_id: 'another-run-123456',
+    })?.key,
+  );
+});

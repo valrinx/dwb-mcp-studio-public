@@ -486,17 +486,17 @@ export class AgentTaskStore {
             existing.id,
           ],
         );
-        // Heal orphaned inbox messages: other paused agents with the same
-        // name+role in this workspace are duplicates of the reclaimed
-        // identity. Their unacknowledged messages would otherwise stay
+        // Heal orphaned inbox messages only within the same chat identity.
+        // Matching names/roles alone do not make agents in different chats
+        // duplicates. Their unacknowledged messages would otherwise stay
         // addressed to an id nobody reads again, which is exactly how a
         // finished handoff looks "never received". Move them to the
         // reclaimed agent, skipping any that would collide with a message
         // it already has (the messages table is unique on
         // source/target/recipient/kind).
         const duplicateRows = this.db.query<any>(
-          "SELECT * FROM workspace_agents WHERE workspace_id=? AND id<>? AND status='paused'",
-          [workspaceId, existing.id],
+          "SELECT * FROM workspace_agents WHERE workspace_id=? AND id<>? AND status='paused' AND context_key IS ?",
+          [workspaceId, existing.id, stableContextKey ?? existing.context_key ?? null],
         );
         for (const duplicate of duplicateRows) {
           if (String(duplicate.name).toLocaleLowerCase() !== name.toLocaleLowerCase()) continue;

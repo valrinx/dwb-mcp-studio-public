@@ -939,3 +939,45 @@ test('completing a dispatched task notifies the coordinator', async () => {
     db.close();
   }
 });
+
+test('reconnecting a same-named agent keeps another chat inbox isolated', async () => {
+  const root = resolve('logs', `agent-tasks-${randomUUID()}`);
+  await mkdir(root, { recursive: true });
+  const db = new CoreStore(resolve(root, 'core.db'));
+  const workspaces = new WorkspaceStore(db);
+  const workspace = await workspaces.register({ path: root });
+  const tasks = new AgentTaskStore(db, workspaces);
+  try {
+    const first = tasks.registerAgent(
+      'session-a',
+      workspace.id,
+      { name: 'ChatGPT Main', role: 'main' },
+      'chat-a',
+    );
+    const second = tasks.registerAgent(
+      'session-b',
+      workspace.id,
+      { name: 'ChatGPT Main', role: 'main' },
+      'chat-b',
+    );
+    const coder = tasks.registerAgent('session-coder', workspace.id, { name: 'Coder' });
+    const message = tasks.sendAgentMessage(workspace.id, coder.id, first.id, {
+      text: 'Result for chat A only',
+    });
+    tasks.pauseAgent(first.id);
+    tasks.pauseAgent(second.id);
+
+    const reconnected = tasks.registerAgent(
+      'session-b-reconnected',
+      workspace.id,
+      { name: 'ChatGPT Main', role: 'main' },
+      'chat-b',
+    );
+    assert.equal(reconnected.id, second.id);
+    assert.deepEqual(tasks.listAgentMessages(workspace.id, second.id), []);
+    assert.equal(tasks.listAgentMessages(workspace.id, first.id)[0]?.id, message.id);
+    assert.equal(tasks.agentForSession('session-a', workspace.id)?.id, first.id);
+  } finally {
+    db.close();
+  }
+});

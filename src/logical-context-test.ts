@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { writeTestBaseConfig } from './test-policy.js';
 
 const root = resolve(import.meta.dirname, '..');
@@ -25,6 +27,7 @@ process.env.DWB_BASE_DC_CONFIG = baseConfig;
 const { BrokerClient } = await import('./broker-client.js');
 let client = await BrokerClient.connect(testDir);
 let brokerPid: number | null = null;
+let adapter: Client | undefined;
 try {
   const a = {
     key: 'meta.conversation_id:chat-z3',
@@ -88,11 +91,79 @@ try {
     aSessionId,
     'logical conversation should survive transport replacement',
   );
+  await client.close();
+
+  // Exercise actual MCP metadata through the adapter, including file observations.
+  adapter = new Client({ name: 'same-workspace-agents', version: '1.0.0' });
+  await adapter.connect(
+    new StdioClientTransport({
+      command: process.execPath,
+      args: [resolve(root, 'dist', 'index.js')],
+      cwd: testDir,
+      env: Object.fromEntries(
+        Object.entries(process.env).filter(
+          (entry): entry is [string, string] => typeof entry[1] === 'string',
+        ),
+      ),
+      stderr: 'pipe',
+    }),
+  );
+  const callAgent = (agentId: string, name: string, args: Record<string, unknown> = {}) =>
+    adapter!.callTool({
+      name,
+      arguments: args,
+      _meta: { 'openai/session': 'shared-conversation-123456', agent_id: agentId },
+    });
+  const statuses: any[] = [];
+  for (const agent of ['agent-coder-123456', 'agent-reviewer-123456']) {
+    const bound = await callAgent(agent, 'workspace', { action: 'bind', path: testDir });
+    assert.notEqual(bound.isError, true);
+    const config = await callAgent(agent, 'get_config');
+    assert.notEqual(config.isError, true);
+    // Capture each allocated worker before this suite's 300ms idle reclamation.
+    statuses.push((await callAgent(agent, 'dwb_session_status')).structuredContent);
+  }
+  assert.notEqual(statuses[0].sessionId, statuses[1].sessionId);
+  assert.notEqual(statuses[0].workerPid, statuses[1].workerPid);
+  for (const status of statuses) {
+    assert.ok(status.workerPid, JSON.stringify(status));
+    assert.equal(status.workingDirectory, testDir);
+  }
+
+  const sharedFile = resolve(testDir, 'shared-agent-file.txt');
+  await writeFile(sharedFile, 'initial\n');
+  for (const agent of ['agent-coder-123456', 'agent-reviewer-123456']) {
+    assert.notEqual((await callAgent(agent, 'read_file', { path: sharedFile })).isError, true);
+  }
+  assert.notEqual(
+    (
+      await callAgent('agent-coder-123456', 'write_file', {
+        path: sharedFile,
+        content: 'coder update\n',
+        mode: 'rewrite',
+      })
+    ).isError,
+    true,
+  );
+  const stale = await callAgent('agent-reviewer-123456', 'write_file', {
+    path: sharedFile,
+    content: 'stale reviewer update\n',
+    mode: 'rewrite',
+  });
+  assert.equal(stale.isError, true, 'agents must keep independent stale-write observations');
+  assert.match(JSON.stringify(stale), /stale-write protection/i);
+  assert.equal(await readFile(sharedFile, 'utf8'), 'coder update\n');
   console.log(
     'LOGICAL_CONTEXT_PASS',
-    JSON.stringify({ workers: broker.structuredContent.activeWorkers, recovered: true }),
+    JSON.stringify({
+      workers: broker.structuredContent.activeWorkers,
+      recovered: true,
+      sameWorkspaceAgents: statuses.length,
+      staleWritePrevented: true,
+    }),
   );
 } finally {
+  await adapter?.close().catch(() => {});
   await client.close().catch(() => {});
   if (brokerPid) {
     try {

@@ -217,6 +217,28 @@ test('resumed logical sessions stay in the current transport family', async () =
   }
 });
 
+test('independently reconnected logical sessions do not detach each other', async () => {
+  const f = fixture();
+  try {
+    const root = await f.registry.attach(process.cwd(), 1);
+    const mainContext = { key: 'main-chat-123', source: 'test' };
+    const workerContext = { key: 'worker-chat-456', source: 'test' };
+    await f.registry.resolveContext(root, mainContext);
+    const child = await f.registry.resolveContext(root, workerContext);
+    await f.registry.detach(root);
+
+    assert.equal(await f.registry.attach(process.cwd(), 2, root), root);
+    assert.equal(await f.registry.attach(process.cwd(), 3, child), child);
+    await f.registry.detach(root);
+
+    assert.equal(f.registry.sessionStatus(child).state, 'attached');
+    assert.equal(await f.registry.resolveContext(child, workerContext), child);
+    assert.equal(f.registry.sessionStatus(child).adapterPid, 3);
+  } finally {
+    await f.registry.shutdown();
+  }
+});
+
 test('new chat stays on the resumed session for subsequent metadata-routed requests', async () => {
   const f = fixture();
   try {
